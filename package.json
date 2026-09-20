@@ -1,0 +1,14 @@
+{
+  "name": "investigation-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static deployment tooling for the Investigation Assistant prototype",
+  "scripts": {
+    "preview": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dry-run": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "wrangler": "^4.135.0"
+  }
+}

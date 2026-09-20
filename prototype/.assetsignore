@@ -1,0 +1,8 @@
+# Development-only files. These remain in Git but are not published as assets.
+.assetsignore
+README.md
+package.json
+server.mjs
+start.sh
+tests/
+assets/**/manifest.json

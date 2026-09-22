@@ -13,7 +13,7 @@ cd prototype
 ./start.sh
 ```
 
-打开 <http://127.0.0.1:4186>。
+打开 <http://127.0.0.1:4186>，默认进入全域态势 `#/PG02`。页面采用全尺寸地图 + 悬浮统计/筛选/洞察；真实南阳市13区县边界本地化，业务指标为合成数据。
 
 详细的页面、交互和测试说明见 [`prototype/README.md`](prototype/README.md)。
 
@@ -27,6 +27,7 @@ npm test
 npm run test:regression
 npm run test:smoke
 npm run test:case-workflow
+npm run test:global-situation
 ```
 
 ## Cloudflare 部署

@@ -8,7 +8,9 @@
     "test": "node tests/e2e.mjs",
     "test:regression": "node tests/regression.mjs",
     "test:smoke": "node tests/smoke.mjs",
-    "test:case-workflow": "node tests/case-workflow.mjs"
+    "test:case-workflow": "node tests/case-workflow.mjs",
+    "test:global-situation": "node tests/global-situation.mjs",
+    "test:case-detail": "node tests/case-detail.mjs"
   },
   "description": "PRD aligned dependency-free interactive frontend prototype"
 }

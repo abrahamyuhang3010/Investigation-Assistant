@@ -39,7 +39,7 @@ export function fitEntityGraphs(root=document) {
   root.querySelectorAll('.entity-graph').forEach(graph=>{
     const viewport=graph.querySelector('.entity-viewport'), stage=graph.querySelector('.entity-stage'), extent=graph.querySelector('.entity-extent');
     const width=Number(graph.dataset.width), height=Number(graph.dataset.height);
-    const fit = Math.min(1,viewport.clientWidth/width);
+    const fit = Math.min(1,viewport.clientWidth/width,graph.closest('.cd-detail')?viewport.clientHeight/height:1);
     const scale = graph.dataset.zoom==='fit' ? Math.max(graph.classList.contains('is-readonly')?.12:.55,fit) : Math.max(.35,Math.min(1.5,Number(graph.dataset.zoom)));
     stage.style.transform=`scale(${scale})`; extent.style.width=`${width*scale}px`; extent.style.height=`${height*scale}px`;
     graph.dataset.scale=scale;

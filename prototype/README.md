@@ -16,9 +16,22 @@
 PORT=4187 ./start.sh
 ```
 
-默认进入超级搜索执行工作台，预置两条合成会话。顶部“功能总览”可切换**页面 / 功能点 / 交互链路**，用于逐项评审；普通业务操作走左侧导航、工作台和页面按钮。深链例：`http://127.0.0.1:4186/#/PG20`。
+默认进入全域态势地图工作台（`#/PG02`），顶部导航根据当前路由高亮；超级搜索和两条预置合成会话仍保留。顶部“功能总览”可切换**页面 / 功能点 / 交互链路**，用于逐项评审；普通业务操作走左侧导航、工作台和页面按钮。深链例：`http://127.0.0.1:4186/#/PG20`。
 
 无需安装前端运行时依赖；需要Node.js，启动脚本优先使用PATH中的Node，再尝试本机Codex bundled Node。不能直接双击HTML：ES模块需要HTTP服务。
+
+## 全域态势 Map-first 工作台
+
+- 地图占满内容区域，统计、筛选、AI洞察、Inspector、图例、控制器悬浮于地图之上；不再使用三栏地图卡片。
+- 复用现有浅深语义tokens、`ui.js`组件/图标接口及本地ECharts；工程为原生ES modules，不安装React或另一套UI库。
+- 真实南阳市边界位于 `assets/maps/411300.json`，校验完整13区县、唯一adcode与有效多边形。来源和导入处理详见 `assets/maps/README.md`。
+- 单击地图/列表只选中并更新Inspector和AI；双击地图或“进入辖区”才下钻。县级统计与演示街道可用，县/街道真实边界未接入时显示明确提示，绝不画虚构多边形。
+- `globalScope`统一查询条件；`getSituationSnapshot()`提供按adcode索引的RegionMetric。市县总数严格相加一致；选中不改变全域总量；缩放/拖动不改变业务范围。
+- `ResizeObserver`测量真实Overlay尺寸，折叠与窗口变化触发地图safe area重排；保留选中与视觉视口。
+- 热力开关可用，警力和重点场所图层显示“待数据”并禁用。AI洞察为模板化合成统计，未接真实模型。
+- Loading/Empty/Error/Permission/Stale/Partial可由现有状态演示入口测试；地图请求错误可独立重试。
+- 核心文件：`src/global-situation.js`、`src/global-situation-panels.js`、`src/global-situation-data.js`、`src/global-situation.css`、`src/situation-map.js`。
+- 验收命令：`node tests/global-situation.mjs`。检查地图真实点击/双击、联动、数据守恒、异常恢复、1440/1600/1920和窄屏/深色主题。
 
 ## Figma 同步后的案件研判链路（2026-09-20）
 
@@ -110,6 +123,7 @@ npm test
 npm run test:regression
 npm run test:smoke
 npm run test:case-workflow
+npm run test:global-situation
 ```
 
 没有PATH中的Node/npm时，可使用本机runtime直接运行：
@@ -120,15 +134,16 @@ NODE="$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/no
 "$NODE" tests/regression.mjs
 "$NODE" tests/smoke.mjs
 "$NODE" tests/case-workflow.mjs
+"$NODE" tests/global-situation.mjs
 ```
 
-结果固定输出到项目的验收目录。22条业务链路+5组边界、8组专项回归；34页三种宽度渲染和PG05六状态。另有34页冒烟快照，不计为额外34条业务链路。
+结果固定输出到项目的验收目录。22条业务链路+5组边界、8组专项回归、全域态势专项联动测试；34页三种宽度渲染和PG05六状态。另有34页冒烟快照，不计为额外34条业务链路。
 
 ## 模拟边界与交付材料
 
 原型不接IDAAS/EasyGateway、RPA、模型服务、Doris、SSE、对象存储、案件系统；角色拦截、审批、SQL检查与审计均为本地演示，不是安全能力承诺。
 
-- 态势日期和地域保存查询条件，不重新计算固定合成趋势；3条明细不代表完整184条样本。
+- 全域态势按时间、行政区、案件/警情、类型与手段重算确定性合成指标，不能用作真实警务结论；警情问答中的3条明细仍不代表完整184条样本。
 - 文件仅TXT/CSV/JSON≤2MB，无PDF/OCR/恶意文件扫描；不要上传真实材料。
 - 人员轨迹以表替代地图，不真实定位；关系/冲突/异常仅作为待核验线索。
 - 报告TXT/JSON、交易CSV，非签章文书；没有自动定罪、冻结或正式合并案件。

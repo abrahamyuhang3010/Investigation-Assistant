@@ -19,6 +19,7 @@ export function seed(){return {
  config:{version:1,model:'演示模型适配器',concurrency:3,retries:1,timeout:60,tools:['identity_lookup','trajectory_query'],tested:false,history:[]},
  memories:[{id:'MEM-001',name:'资金统计先核对币种与冲正',status:'候选',scope:'资金流统计',content:'按币种分别汇总；冲正单列；不得将未核验交易视为事实。',source:'S-0819',evaluated:false,version:1}],preferences:{save:true,compact:false},
  skills:[{id:'SK-001',name:'资金链路核查',description:'账户核验 → 交易整理 → 路径追踪 → 来源复核',version:1,status:'设计预览',permission:'资金读取',files:['SKILL.md','references/口径说明.md'],history:[]}],
+ globalScope:{regionId:'411300',regionName:'南阳市',regionLevel:'CITY',timeRange:'3M',dataType:'CASE',caseCategory:'ALL',caseSubCategory:'ALL',alertCategory:'ALL',crimeMethod:'ALL',customStart:'2026-07-01',customEnd:'2026-09-21',mapZoom:1,mapCenter:null},
  audits:[{id:'AUD-001',time:'2026-09-19 14:32:00',actor:'演示研判员',action:'查看合成轨迹产物',object:'OBJ-001',result:'成功',trace:'TRACE-DEMO-001'}],favorites:[],checks:{},sql:'SELECT category, COUNT(DISTINCT alert_id) AS total FROM demo_alerts WHERE occurred_at >= :start AND occurred_at < :end GROUP BY category LIMIT 100',sqlExecuted:false,querySaved:false,serial:{status:'待核验',reason:'',reviewed:false},filters:{},historyFilter:'',historyStatus:'全部'
 }}
 export function load(){try{let x=JSON.parse(localStorage.getItem(KEY));return x?.version===1?{...seed(),...x}:seed()}catch{return seed()}}

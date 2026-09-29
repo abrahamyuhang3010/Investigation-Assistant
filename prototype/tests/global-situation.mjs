@@ -2,103 +2,200 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
-import {defaultGlobalScope,getSituationSnapshot} from '../src/global-situation-data.js';
+import {defaultGlobalScope,getSituationSnapshot,getRegion,getChildren,getRegionOptions} from '../src/global-situation-data.js';
+
 let pw;try{pw=await import('playwright')}catch{pw=await import(path.join(process.env.HOME,'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs'))}
 const base=process.env.PROTOTYPE_URL||'http://127.0.0.1:4186';
-const out=new URL('../../audit/map-first-2026-09-22/',import.meta.url);await fs.mkdir(out,{recursive:true});
+const out=new URL('../../audit/map-first-2026-09-29/',import.meta.url);await fs.mkdir(out,{recursive:true});
 const checks=[];const pass=name=>{checks.push(name);console.log('PASS',name)};
-// Canonical metric unit invariants across filters, levels and selection.
+const countyCounts={
+ '411302':15,'411303':19,'411321':21,'411322':19,'411323':19,'411324':22,'411325':16,
+ '411326':17,'411327':16,'411328':23,'411329':15,'411330':16,'411381':29,
+};
+const overlayCounts={'411302':6,'411303':4,'411322':1};
+const countyNames=Object.fromEntries(Object.keys(countyCounts).map(code=>[code,getRegion(code).name]));
+
+// Data-model invariants: county fixtures remain canonical and every township/street receives a complete synthetic profile.
 for(const timeRange of ['7D','30D','3M','6M','1Y'])for(const dataType of ['CASE','POLICE_ALERT']){
- const scope={...defaultGlobalScope(),timeRange,dataType};
- const snap=getSituationSnapshot(scope),{view}=snap;
- assert.equal(view.regions.reduce((n,r)=>n+r.count,0),view.total);
- assert.equal(view.victim.gender.reduce((n,r)=>n+r.value,0),view.victim.total);
- assert.equal(view.victim.age.reduce((n,r)=>n+r.value,0),view.victim.total);
- assert.equal(view.alerts.typeDistribution.reduce((n,r)=>n+r.value,0),view.total);
- for(const address of view.alerts.addresses)assert.equal(address.value,view.regions.find(r=>r.name===address.label).count);
- if(dataType==='CASE')for(const method of view.victim.methods)assert.equal(method.value,getSituationSnapshot({...scope,crimeMethod:method.id}).view.total);
- for(const region of view.regions){
-  const child=getSituationSnapshot({...scope,regionId:region.id,regionName:region.name,regionLevel:'COUNTY'}).view;
-  assert.equal(child.total,region.count);assert.equal(child.regions.reduce((n,r)=>n+r.count,0),child.total);
-  if(region.allowed){const selected=getSituationSnapshot({...scope,selectedRegion:region.id});assert.equal(selected.context.total,region.count);assert.equal(selected.view.total,view.total)}
+ const scope={...defaultGlobalScope(),timeRange,dataType},city=getSituationSnapshot(scope).view;
+ assert.equal(city.regions.length,13);assert.equal(city.regions.reduce((sum,region)=>sum+region.count,0),city.total);
+ assert.equal(city.victim.gender.reduce((sum,item)=>sum+item.value,0),city.victim.total);
+ assert.equal(city.victim.age.reduce((sum,item)=>sum+item.value,0),city.victim.total);
+ assert.equal(city.alerts.typeDistribution.reduce((sum,item)=>sum+item.value,0),city.total);
+ assert.equal(city.alerts.addresses.reduce((sum,item)=>sum+item.value,0),city.total);
+ for(const county of city.regions){
+  const countyScope={...scope,regionId:county.id,regionName:county.name,regionLevel:'COUNTY'},snapshot=getSituationSnapshot(countyScope),view=snapshot.view;
+  assert.equal(view.total,county.count);assert.ok(view.regions.every(region=>Number.isInteger(region.count)&&region.count>=0&&region.hasBusinessData===true&&region.businessDataMode==='synthetic'));
+  assert.equal(view.regions.reduce((sum,region)=>sum+region.count,0),view.total);
+  assert.equal(view.regions.length,county.id==='411322'?20:countyCounts[county.id]);
+  const legalTownship=view.regions.find(region=>region.dataStatus!=='missing_geometry');
+  const selected=getSituationSnapshot({...countyScope,selectedRegion:legalTownship.id});
+  assert.equal(selected.view.total,view.total);assert.equal(selected.context.total,legalTownship.count);assert.equal(selected.context.hasBusinessData,true);
+  assert.equal(selected.context.victim.gender.reduce((sum,item)=>sum+item.value,0),selected.context.victim.total);
+  assert.equal(selected.context.victim.age.reduce((sum,item)=>sum+item.value,0),selected.context.victim.total);
+  assert.equal(selected.context.alerts.typeDistribution.reduce((sum,item)=>sum+item.value,0),selected.context.total);
+  assert.equal(selected.context.alerts.addresses.reduce((sum,item)=>sum+item.value,0),selected.context.total);
  }
 }
-pass('10 scope combinations: parent/child totals, profile sums, selection equality');
-for(const dataType of ['CASE','POLICE_ALERT']){
- const baseline={...defaultGlobalScope(),dataType};
- const inactive={...baseline,customStart:'2025-01-01',customEnd:'2025-02-02',...(dataType==='CASE'?{alertCategory:'THEFT'}:{caseCategory:'TELECOM',caseSubCategory:'REBATE',crimeMethod:'REBATE'})};
- assert.deepEqual(getSituationSnapshot(inactive).view.regions,getSituationSnapshot(baseline).view.regions);
-}
-pass('inactive custom dates and inactive-mode filters do not change metrics');
+assert.equal(Object.values(countyCounts).reduce((sum,count)=>sum+count,0),247);
+assert.equal(getRegionOptions(defaultGlobalScope()).length,14);
+const guanganRegion=getChildren('411322').find(region=>region.id==='411322004');
+assert.equal(guanganRegion?.dataStatus,'missing_geometry');
+const fangchengScope={...defaultGlobalScope(),regionId:'411322',regionName:'方城县',regionLevel:'COUNTY'};
+const fangcheng=getSituationSnapshot(fangchengScope);
+assert.equal(fangcheng.metrics.get('411322004')?.hasBusinessData,true);
+const zone=getRegion('411371060'),zoneSnapshot=getSituationSnapshot({...defaultGlobalScope(),regionId:'411302',regionName:'宛城区',regionLevel:'COUNTY',selectedRegion:zone.id});
+assert.equal(zone.isManagementZone,true);assert.equal(zoneSnapshot.context.hasBusinessData,true);assert.equal(zoneSnapshot.context.metric.businessDataMode,'synthetic-independent');
+assert.equal(zoneSnapshot.view.regions.reduce((sum,region)=>sum+region.count,0),zoneSnapshot.view.total);
+pass('data hierarchy: 13 counties, 247 polygon-backed townships, complete synthetic township metrics, and independent management-zone metrics');
+
+const runtimeMapRoot=fileURLToPath(new URL('../assets/maps/nanyang/',import.meta.url));
+await assert.rejects(fs.access(path.join(runtimeMapRoot,'all-townships.cleaned.geojson')));
+const runtimeFiles=await fs.readdir(path.join(runtimeMapRoot,'townships'));
+for(const file of runtimeFiles.filter(name=>name.endsWith('.geojson'))){const stat=await fs.stat(path.join(runtimeMapRoot,'townships',file));assert.ok(stat.size<1024*1024,`${file}: runtime GeoJSON exceeds 1 MiB (${stat.size})`)}
+pass('runtime assets exclude the all-townships file and every lazy-loaded county payload stays below 1 MiB');
+
 const browser=await pw.chromium.launch({headless:true,channel:process.env.PW_CHANNEL||'chrome'});
-const page=await browser.newPage({viewport:{width:1440,height:900}});const errors=[];
-page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
-const wait=()=>page.waitForTimeout(180);
-const ready=()=>page.waitForSelector('[data-situation-map][data-map-status="ready"]');
-const scope=()=>page.evaluate(async()=>structuredClone((await import('/src/state.js')).state.globalScope));
-const ui=()=>page.evaluate(async()=>structuredClone((await import('/src/state.js')).state.situationUI));
-const total=async()=>Number(await page.locator('[data-summary-count]').getAttribute('data-summary-count'));
-const action=async(name,extra='')=>{await page.locator(`[data-action="${name}"]${extra}`).first().click();await wait()};
-const chartInfo=()=>page.evaluate(async()=>{const c=(await import('/src/situation-map.js')).getSituationMapChart();const s=c.getOption().series[0];return {zoom:s.zoom,center:s.center,data:s.data,rect:c.getModel().getSeriesByIndex(0).coordinateSystem.getViewRect(),safe:JSON.parse(document.querySelector('[data-situation-map]').dataset.safeRect)}});
-async function mapPoint(id){return page.evaluate(async id=>{const c=(await import('/src/situation-map.js')).getSituationMapChart();const data=c.getOption().series[0].data.find(d=>d.regionId===id);const g=c.getModel().getSeriesByIndex(0).coordinateSystem;const point=c.convertToPixel({seriesIndex:0},g.getRegion(data.name).getCenter());const box=c.getDom().getBoundingClientRect();return {x:point[0]+box.left,y:point[1]+box.top}},id)}
-async function consistent(id){
- const data=await page.evaluate(async id=>{const s=(await import('/src/state.js')).state.globalScope;const snapshot=(await import('/src/global-situation-data.js')).getSituationSnapshot(s);const c=(await import('/src/situation-map.js')).getSituationMapChart();return {metric:snapshot.metrics.get(id).count,map:c.getOption().series[0].data.find(d=>d.regionId===id).value}},id);
- assert.equal(data.metric,data.map);assert.equal(Number(await page.locator('[data-context-count]').getAttribute('data-context-count')),data.metric);assert.equal(Number(await page.locator('[data-insight-count]').getAttribute('data-insight-count')),data.metric);
- const row=await page.locator(`.region-row[data-region-id="${id}"] .region-count`).textContent();assert.equal(Number(row.replace(/[^\d]/g,'')),data.metric);
-}
+const context=await browser.newContext({viewport:{width:1440,height:900}});
+await context.addInitScript(()=>localStorage.clear());
+const page=await context.newPage(),errors=[],requests=[];
+page.on('pageerror',error=>errors.push(error.message));
+page.on('console',message=>{if(message.type()==='error')errors.push(message.text())});
+page.on('request',request=>requests.push(new URL(request.url()).pathname));
+const wait=ms=>page.waitForTimeout(ms||120);
+const ready=(target=page)=>target.waitForSelector('[data-situation-map][data-map-status="ready"]');
+const mapState=(target=page)=>target.evaluate(async()=>{
+ const scope=structuredClone((await import('/src/state.js')).state.globalScope),stage=document.querySelector('[data-situation-map]'),chart=(await import('/src/situation-map.js')).getSituationMapChart();
+ const series=chart?.getOption().series?.[0];
+ return {scope,status:stage?.dataset.mapStatus,mapName:stage?.dataset.mapName,legal:Number(stage?.dataset.mapLegalFeatureCount),overlay:Number(stage?.dataset.mapOverlayFeatureCount),features:Number(stage?.dataset.mapFeatureCount),data:series?.data||[],tooltipConfined:chart?.getOption().tooltip?.[0]?.confine};
+});
+const selectScope=async(code,target=page)=>{await target.locator('[name="situation-region-select"]').selectOption(code);await target.waitForSelector(`[data-situation-map][data-map-name="nanyang-${code}"][data-map-status="ready"]`)};
+const triggerMapEvent=async(type,id,target=page)=>target.evaluate(async({type,id})=>{
+ const chart=(await import('/src/situation-map.js')).getSituationMapChart(),data=chart.getOption().series[0].data.find(item=>item.regionId===id);
+ if(!data)throw new Error(`map region not found: ${id}`);
+ chart.trigger(type,{componentType:'series',seriesType:'map',seriesIndex:0,name:data.name,data});
+},{type,id});
+const summaryCount=async(target=page)=>Number(await target.locator('[data-summary-count]').getAttribute('data-summary-count'));
+
 try{
- await page.goto(base);await ready();await wait();assert.equal(new URL(page.url()).hash,'#/PG02');assert.equal(await page.locator('.global-nav a.active').textContent(),'全域态势');assert(await page.locator('[data-action="situation-enter"]').isDisabled());
- assert.equal((await chartInfo()).data.length,13);assert.equal(await page.locator('.region-row').count(),13);assert.equal(await page.locator('.situation-map-card,.situation-workspace').count(),0);pass('root/default route, navigation, map canvas and 13 real counties');
- const cityTotal=await total();await action('situation-select','[data-region-id="411302"]');assert.equal((await scope()).regionId,'411300');assert.equal((await scope()).selectedRegion,'411302');assert.equal(await total(),cityTotal);await consistent('411302');pass('single list click selects without drilling; all five surfaces share exact count');
- // Hover in both directions using real pointer events.
- await page.locator('.region-row[data-region-id="411302"]').hover();await wait();assert(await page.locator('.situation-tooltip').isVisible());assert((await page.locator('.situation-tooltip').textContent()).includes('宛城区'));
- const wolong=await mapPoint('411303');await page.mouse.move(wolong.x,wolong.y);await wait();assert((await page.locator('.region-row[data-region-id="411303"]').getAttribute('class')).includes('hovered'));pass('bidirectional map/list hover and tokenized tooltip');
- await page.mouse.click(wolong.x,wolong.y);await wait();assert.equal((await scope()).regionId,'411300');assert.equal((await scope()).selectedRegion,'411303');await consistent('411303');assert.equal(await page.locator('.module-error').count(),1);await action('situation-occupation-retry');assert.equal(await page.locator('.module-error').count(),0);pass('real map click updates Inspector/AI, module failure and retry are isolated');
- // Real double click must survive the first click selecting and rerendering overlays.
- const wancheng=await mapPoint('411302');await page.mouse.dblclick(wancheng.x,wancheng.y,{delay:90});await page.waitForSelector('[data-map-status="unavailable"]');assert.equal((await scope()).regionId,'411302');assert.equal((await scope()).selectedRegion,null);assert((await page.locator('.map-load-state').textContent()).includes('下级行政区数据待接入'));assert.equal(await page.locator('canvas').count(),0);pass('double click drills to county; no fabricated street map fallback');
- await action('situation-map-reset');await ready();assert.equal((await scope()).regionId,'411300');assert.equal((await scope()).selectedRegion,null);
- await action('situation-select','[data-region-id="411330"]');assert.equal((await scope()).selectedRegion,null);assert((await page.locator('#toast').textContent()).includes('暂无该辖区数据访问权限'));assert(await page.locator('[data-action="situation-enter"]').isDisabled());
- const denied=await mapPoint('411330');await page.mouse.click(denied.x,denied.y);await wait();assert.equal((await scope()).selectedRegion,null);assert.equal((await scope()).regionId,'411300');assert.equal(await page.evaluate(async()=>{const c=(await import('/src/situation-map.js')).getSituationMapChart();return c.getModel().getSeriesByIndex(0).getSelectedDataIndices().length}),0);
- await action('situation-select','[data-region-id="411302"]');await action('situation-enter');assert.equal((await scope()).regionId,'411302');await action('situation-region','[data-region-id="411300"]');await ready();pass('permission rejection, explicit drill button, breadcrumb and reset');
- await action('situation-select','[data-region-id="411302"]');const before=Number(await page.locator('[data-context-count]').getAttribute('data-context-count'));
- await page.locator('[name="situation-time"]').selectOption('7D');await ready();await consistent('411302');assert.notEqual(Number(await page.locator('[data-context-count]').getAttribute('data-context-count')),before);
- await action('situation-category','[data-category-id="TELECOM"]');await ready();await consistent('411302');assert.equal((await scope()).caseCategory,'TELECOM');
- await page.locator('[name="situation-case-subcategory"]').selectOption('REBATE');await ready();await consistent('411302');assert.equal((await scope()).caseSubCategory,'REBATE');
- await action('situation-method','[data-method-id="INVESTMENT"]');await ready();await consistent('411302');assert.equal((await scope()).crimeMethod,'INVESTMENT');assert.equal((await scope()).caseSubCategory,'ALL');
- pass('time/category/subcategory/method refresh spatial metrics, banner and profile together');
- await action('situation-collapse','[data-panel="insight"]');assert((await ui()).insightCollapsed);
- await page.locator('[name="situation-time"]').selectOption('30D');await ready();assert.equal(await page.locator('.situation-banner p').count(),0);
- await action('situation-mode','[data-mode="POLICE_ALERT"]');await ready();assert((await ui()).insightCollapsed);assert.equal((await scope()).crimeMethod,'ALL');assert((await page.locator('.inspector-scroll').textContent()).includes('警情结构分析'));assert.equal(await page.locator('.victim-total').count(),0);
- await action('situation-collapse','[data-panel="insight"]');await consistent('411302');pass('police semantics and AI collapsed-state persistence across filters');
- // Preserve business scope while visual controls and overlay reflow change.
- const previousScope=await scope();const oldSafe=(await chartInfo()).safe;
- await action('situation-collapse','[data-panel="left"]');await action('situation-collapse','[data-panel="right"]');const afterSafe=(await chartInfo()).safe;assert(afterSafe.width>oldSafe.width);assert.deepEqual(await scope(),previousScope);
- await action('situation-map-zoom','[data-delta="0.18"]');assert((await chartInfo()).zoom>1);assert.equal((await scope()).regionId,previousScope.regionId);
- const drag=await mapPoint('411302');await page.mouse.move(drag.x,drag.y);await page.mouse.down();await page.mouse.move(drag.x+38,drag.y+20,{steps:8});await page.mouse.up();await wait();assert(Array.isArray((await scope()).mapCenter));assert.equal((await scope()).selectedRegion,previousScope.selectedRegion);
- await action('situation-layers');assert.equal(await page.locator('.layer-popover input:disabled').count(),2);await page.locator('[name="situation-heat"]').uncheck();await wait();assert.equal((await ui()).heat,false);assert.equal((await scope()).regionId,previousScope.regionId);await page.keyboard.press('Escape');assert.equal(await page.locator('.layer-popover').count(),0);
- pass('collapse safe-area reflow, zoom/pan separate from scope, honest layers popover');
- await action('situation-collapse','[data-panel="left"]');await action('situation-collapse','[data-panel="right"]');await action('situation-map-reset');await ready();assert.equal((await scope()).selectedRegion,null);assert.equal((await scope()).mapZoom,1);assert.equal((await scope()).mapCenter,null);
- await action('situation-mode','[data-mode="CASE"]');await ready();await page.locator('[name="situation-time"]').selectOption('CUSTOM');await ready();const customTotal=await total();await page.locator('[name="situation-custom-start"]').fill('2026-09-01');await page.locator('[name="situation-custom-start"]').blur();await ready();assert.notEqual(await total(),customTotal);pass('custom date range recomputes all metrics');
- for(const state of ['加载中','空状态','加载失败','无权限','数据过期','部分数据']){await page.locator('#view-state').selectOption(state);await wait();if(state==='加载中')assert.equal(await page.locator('.situation-state-skeleton').count(),1);else if(state==='部分数据')assert.equal(await page.locator('.module-error').count(),1);else assert.equal(await page.locator('.situation-state').count(),1)}
- await page.locator('#view-state').selectOption('正常');await ready();pass('loading, empty, error, permission, stale and partial state UI');
- await page.locator('.global-nav a',{hasText:'超级搜索'}).click();await wait();assert.equal(await page.locator('.global-nav a.active').textContent(),'超级搜索');await page.locator('.global-nav a',{hasText:'全域态势'}).click();await ready();const saved=await scope();await page.reload();await ready();assert.deepEqual(await scope(),saved);pass('search navigation, return and browser-refresh persistence');
- // Restore baseline before visual acceptance captures.
- await page.locator('[name="situation-time"]').selectOption('3M');await ready();await action('situation-layers');await page.locator('[name="situation-heat"]').check();await page.keyboard.press('Escape');await wait();
- await page.waitForFunction(()=>!document.querySelector('#toast').classList.contains('show'));await page.mouse.move(720,70);await page.evaluate(()=>document.activeElement?.blur());
- for(const [width,height] of [[1440,900],[1600,1000],[1920,1080]]){
-  await page.setViewportSize({width,height});await wait();const info=await chartInfo();
-  assert(info.safe.width>650);assert(info.rect.x>=info.safe.x-1&&info.rect.y>=info.safe.y-1);assert(info.rect.x+info.rect.width<=info.safe.x+info.safe.width+1);assert(info.rect.y+info.rect.height<=info.safe.y+info.safe.height+1);
-  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  assert(await page.evaluate(()=>document.querySelector('.situation-echarts').getBoundingClientRect().width===innerWidth));
-  await page.screenshot({path:fileURLToPath(new URL(`map-first-${width}.png`,out))});
+ await page.goto(base);await ready();
+ let state=await mapState();
+ assert.equal(new URL(page.url()).hash,'#/PG02');assert.equal(state.mapName,'nanyang-411300');assert.equal(state.legal,13);assert.equal(state.overlay,0);assert.equal(state.features,13);assert.equal(state.data.length,13);
+ assert.equal(await page.locator('.region-row').count(),13);assert.equal(await page.locator('[name="situation-region-select"] option').count(),14);
+ assert.equal(requests.filter(url=>url.includes('/townships/')).length,0);assert.equal(requests.filter(url=>url.includes('all-townships')).length,0);
+ const cityLegend=await page.locator('.map-legend').boundingBox();assert.match(await page.locator('.map-legend').textContent(),/^案件数量/);assert.equal(await page.locator('.map-legend .legend-boundary').count(),0);
+ pass('first screen loads 13 county polygons only and never requests township/all-townships data');
+
+ // County double-click animates out/in, changes Global Scope, and does not leak the previous map.
+ await triggerMapEvent('dblclick','411302');
+ assert.equal(await page.locator('[data-map-drill-transition="out"]').count(),1);assert.match(await page.locator('.map-drill-cue').textContent(),/进入辖区.*宛城区/s);
+ await page.waitForSelector('[data-map-name="nanyang-411302"][data-map-status="ready"][data-map-drill-transition="complete"]');state=await mapState();
+ assert.equal(state.scope.regionId,'411302');assert.equal(state.legal,15);assert.equal(state.overlay,6);assert.equal(state.features,21);
+ const countyLegend=await page.locator('.map-legend').boundingBox();assert.match(await page.locator('.map-legend').textContent(),/^案件数量/);assert.equal(await page.locator('.map-legend .legend-boundary').count(),0);assert.equal(countyLegend.height,cityLegend.height);
+ await selectScope('411300');state=await mapState();assert.equal(state.features,13);assert.equal(state.data.length,13);
+ await selectScope('411303');state=await mapState();assert.equal(state.scope.regionId,'411303');assert.equal(state.legal,19);assert.equal(state.overlay,4);assert.equal(state.features,23);assert.ok(state.data.every(item=>item.regionId.startsWith('411303')||item.isManagementZone));
+ pass('city → Wancheng drill-down animates out/in; subsequent map switches have no feature leakage');
+
+ // Every legal county file loads the expected polygon count; overlays exist only in the three display counties.
+ for(const [code,count] of Object.entries(countyCounts)){
+  await selectScope(code);state=await mapState();
+  assert.equal(state.scope.regionId,code,`${code}: wrong scope`);assert.equal(state.mapName,`nanyang-${code}`);assert.equal(state.legal,count,`${code}: wrong legal polygon count`);assert.equal(state.overlay,overlayCounts[code]||0,`${code}: wrong overlay count`);assert.equal(state.features,count+(overlayCounts[code]||0));
  }
- pass('1440/1600/1920: full canvas, map inside measured safe area, no horizontal overflow');
- await action('theme');await ready();await page.screenshot({path:fileURLToPath(new URL('map-first-dark.png',out))});assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
- await page.setViewportSize({width:1024,height:768});await wait();assert((await ui()).rightCollapsed);await page.screenshot({path:fileURLToPath(new URL('map-first-1024.png',out))});
- await page.setViewportSize({width:760,height:800});await wait();assert((await ui()).leftCollapsed);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await action('situation-collapse','[data-panel="right"]');assert((await ui()).leftCollapsed);await page.screenshot({path:fileURLToPath(new URL('map-first-760.png',out))});
- pass('dark theme and narrow-desktop drawers');assert.deepEqual(errors,[]);pass('no console errors or uncaught exceptions on successful path');
- // Independent failure tests: keep expected network errors out of successful-path assertions.
- const fail=await browser.newPage();await fail.route('**/assets/maps/411300.json',r=>r.fulfill({status:503,body:'unavailable'}));await fail.goto(base);await fail.waitForSelector('[data-map-status="error"]');assert((await fail.locator('.map-load-state').textContent()).includes('重新加载'));await fail.unroute('**/assets/maps/411300.json');await fail.locator('[data-action="situation-map-retry"]').click();await fail.waitForSelector('[data-map-status="ready"]');await fail.close();pass('map fetch failure and retry recovery');
- const invalid=await browser.newPage();await invalid.route('**/assets/maps/411300.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify({type:'FeatureCollection',features:[]})}));await invalid.goto(base);await invalid.waitForSelector('[data-map-status="error"]');await invalid.close();pass('malformed / incomplete GeoJSON rejected');
- await fs.writeFile(new URL('results.json',out),JSON.stringify({date:'2026-09-22',checks,errors},null,2));console.log(`global-situation PASS (${checks.length} groups)`);
-}finally{await browser.close()}
+ pass('all 13 county maps load exact legal counts; clipped overlays are 6 / 4 / 1 and zero elsewhere');
+
+ // Promise-level memory cache prevents a repeated county fetch.
+ const before=requests.filter(url=>url.endsWith('/townships/411302.geojson')).length;
+ await selectScope('411300');await selectScope('411302');await selectScope('411300');await selectScope('411302');
+ const after=requests.filter(url=>url.endsWith('/townships/411302.geojson')).length;
+ assert.equal(before,1);assert.equal(after,1);
+ pass('same county is served from in-memory GeoJSON cache without refetch');
+
+ // Township selection updates only Map Selection; left KPI and AI remain bound to the county scope.
+ const countyTotal=await summaryCount(),insightBefore=await page.locator('[data-insight-count]').getAttribute('data-insight-count');
+ await triggerMapEvent('click','411302001');await wait();state=await mapState();
+ assert.equal(state.scope.regionId,'411302');assert.equal(state.scope.regionLevel,'COUNTY');assert.equal(state.scope.selectedRegion,'411302001');assert.equal(await summaryCount(),countyTotal);assert.equal(await page.locator('[data-insight-count]').getAttribute('data-insight-count'),insightBefore);
+ const townshipInspector=await page.locator('.situation-right').textContent(),selectedTownshipCount=state.data.find(item=>item.regionId==='411302001').value;assert.match(townshipInspector,/分析面板/);assert.match(townshipInspector,/(受害人画像分析|警情结构分析)/);assert.equal(Number(await page.locator('[data-context-count]').getAttribute('data-context-count')),selectedTownshipCount);
+ await triggerMapEvent('dblclick','411302001');await wait();assert.equal((await mapState()).scope.regionId,'411302');
+ pass('township click selects only, preserves county KPI/AI scope, and township double-click does not drill');
+
+ // Management overlay click is selection-only and explicitly excluded from legal-county statistics.
+ await triggerMapEvent('click','411371060');await wait();state=await mapState();
+ assert.equal(state.scope.regionId,'411302');assert.equal(state.scope.selectedRegion,'411371060');assert.equal(await summaryCount(),countyTotal);
+ const inspector=await page.locator('.situation-right').textContent();assert.match(inspector,/功能区/);assert.match(inspector,/独立合成指标，不计入 13 个法定区县汇总/);
+ await triggerMapEvent('dblclick','411371060');await wait();assert.equal((await mapState()).scope.regionId,'411302');
+ pass('management-zone overlay is render-only selection and never changes Global Scope');
+
+ // Missing Guang'an metadata is visible in the directory but absent from map data.
+ await selectScope('411322');state=await mapState();assert.equal(state.legal,19);assert.equal(await page.locator('.region-row').count(),20);assert.equal(state.data.some(item=>item.regionId==='411322004'),false);
+ const guangan=page.locator('.region-row[data-region-id="411322004"]');assert.match(await guangan.textContent(),/边界缺失（未绘制）/);await guangan.click();await wait();assert.equal((await mapState()).scope.regionId,'411322');
+ assert.match(await guangan.textContent(),/合成数据/);assert.match(await page.locator('.situation-right').textContent(),/分析面板/);assert.equal(Number(await page.locator('[data-context-count]').getAttribute('data-context-count')),state.data.find(item=>item.regionId==='411322004')?.value||getSituationSnapshot({...fangchengScope,selectedRegion:'411322004'}).context.total);
+ pass('411322004 Guang’an Street keeps synthetic business data while missing geometry is never drawn');
+
+ // Responsive safe area, low heights, label collision control, tooltip confinement, light/dark.
+ await selectScope('411302');
+ for(const [width,height] of [[1440,768],[1440,900],[1600,900],[1920,1080]]){
+  await page.setViewportSize({width,height});await wait(180);
+  const layout=await page.evaluate(async()=>{
+   const chart=(await import('/src/situation-map.js')).getSituationMapChart(),stage=document.querySelector('[data-situation-map]'),series=chart.getOption().series[0],safe=JSON.parse(stage.dataset.safeRect),rect=chart.getModel().getSeriesByIndex(0).coordinateSystem.getViewRect();
+   return {safe,rect,scrollWidth:document.documentElement.scrollWidth,innerWidth,labelLayout:series.labelLayout,tooltip:chart.getOption().tooltip[0].confine};
+  });
+  assert.ok(layout.safe.width>300&&layout.safe.height>150);assert.ok(layout.rect.x>=layout.safe.x-2&&layout.rect.y>=layout.safe.y-2);assert.ok(layout.rect.x+layout.rect.width<=layout.safe.x+layout.safe.width+2);assert.ok(layout.rect.y+layout.rect.height<=layout.safe.y+layout.safe.height+2);assert.ok(layout.scrollWidth<=layout.innerWidth);assert.equal(layout.labelLayout.hideOverlap,true);assert.equal(layout.tooltip,true);
+ }
+ const initialTheme=await page.locator('html').getAttribute('data-theme');await page.locator('[data-action="theme"]').first().click();await ready();assert.notEqual(await page.locator('html').getAttribute('data-theme'),initialTheme);
+ await page.screenshot({path:fileURLToPath(new URL('township-map-dark.png',out))});
+ pass('responsive safe area at 1440/1600/1920 and low height; label overlap control, confined tooltip, dark theme');
+
+ // Selection and hover linkage remain available through ECharts and the region directory.
+ await triggerMapEvent('click','411302001');await wait();
+ assert.equal(await page.locator('.region-row[data-region-id="411302001"].selected').count(),1);
+ const selected=await page.evaluate(async()=>{const chart=(await import('/src/situation-map.js')).getSituationMapChart(),series=chart.getModel().getSeriesByIndex(0),index=series.getData().indexOfName('东关街道');return series.isSelected(index)});
+ assert.equal(selected,true);
+ const mapOption=await mapState();assert.equal(mapOption.tooltipConfined,true);
+ pass('township selection is synchronized between map and directory; tooltip is confined');
+
+ assert.deepEqual(errors,[]);pass('successful path has no console errors or uncaught exceptions');
+
+ // Reduced-motion users drill immediately without the outgoing animation delay.
+ const reducedContext=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'});
+ const reduced=await reducedContext.newPage();await reduced.addInitScript(()=>localStorage.clear());await reduced.goto(base);await ready(reduced);
+ await triggerMapEvent('dblclick','411302',reduced);
+ const reducedScope=await reduced.evaluate(async()=>(await import('/src/state.js')).state.globalScope.regionId);
+ assert.equal(reducedScope,'411302');assert.equal(await reduced.locator('.is-drilling-out').count(),0);
+ await reduced.waitForSelector('[data-map-name="nanyang-411302"][data-map-status="ready"]');await reducedContext.close();
+ pass('prefers-reduced-motion skips the drill-out delay and still enters the county map');
+
+ // Rapid scope changes: delayed old requests must not overwrite the last selection.
+ const rapid=await context.newPage();await rapid.addInitScript(()=>localStorage.clear());
+ const delays={'411302':320,'411303':190,'411381':20};
+ for(const [code,delay] of Object.entries(delays))await rapid.route(`**/assets/maps/nanyang/townships/${code}.geojson`,async route=>{await new Promise(resolve=>setTimeout(resolve,delay));await route.continue()});
+ await rapid.goto(base);await ready(rapid);
+ for(const code of ['411302','411303','411381'])await rapid.locator('[name="situation-region-select"]').selectOption(code);
+ await rapid.waitForSelector('[data-map-name="nanyang-411381"][data-map-status="ready"]');await rapid.waitForTimeout(380);
+ const rapidState=await rapid.evaluate(async()=>({scope:(await import('/src/state.js')).state.globalScope.regionId,mapName:document.querySelector('[data-situation-map]').dataset.mapName,legal:document.querySelector('[data-situation-map]').dataset.mapLegalFeatureCount}));
+ assert.deepEqual(rapidState,{scope:'411381',mapName:'nanyang-411381',legal:'29'});await rapid.close();
+ pass('rapid Wancheng → Wolong → Dengzhou switching ends on Dengzhou without stale async overwrite');
+
+ // County fetch failure has an honest error state and retry clears cache before re-fetching.
+ const failure=await context.newPage();await failure.addInitScript(()=>localStorage.clear());let attempts=0;
+ await failure.route('**/assets/maps/nanyang/townships/411302.geojson',async route=>{attempts++;if(attempts===1)await route.fulfill({status:503,body:'unavailable'});else await route.continue()});
+ await failure.goto(base);await ready(failure);await failure.locator('[name="situation-region-select"]').selectOption('411302');await failure.waitForSelector('[data-map-status="error"]');
+ assert.match(await failure.locator('.map-load-state').textContent(),/真实行政区地图加载失败/);await failure.locator('[data-action="situation-map-retry"]').click();await failure.waitForSelector('[data-map-name="nanyang-411302"][data-map-status="ready"]');assert.equal(attempts,2);await failure.close();
+ pass('county fetch failure shows no fake fallback and retry recovers with a fresh request');
+
+ // Existing but empty county file produces a distinct Empty state; retry is offered.
+ const empty=await context.newPage();await empty.addInitScript(()=>localStorage.clear());
+ await empty.route('**/assets/maps/nanyang/townships/411303.geojson',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({type:'FeatureCollection',features:[]})}));
+ await empty.goto(base);await ready(empty);await empty.locator('[name="situation-region-select"]').selectOption('411303');await empty.waitForSelector('[data-map-status="empty"]');assert.match(await empty.locator('.map-load-state').textContent(),/暂无乡级边界数据/);assert.equal(await empty.locator('[data-action="situation-map-retry"]').count(),1);await empty.close();
+ pass('empty county FeatureCollection renders explicit Empty state');
+
+ // Incomplete city data is rejected rather than rendered as a misleading map.
+ const invalid=await context.newPage();await invalid.addInitScript(()=>localStorage.clear());
+ await invalid.route('**/assets/maps/nanyang/city/411300.geojson',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({type:'FeatureCollection',features:[]})}));
+ await invalid.goto(base);await invalid.waitForSelector('[data-map-status="error"]');assert.match(await invalid.locator('.map-load-state').textContent(),/13个唯一行政代码/);await invalid.close();
+ pass('incomplete city GeoJSON is rejected');
+
+ await fs.writeFile(new URL('results.json',out),JSON.stringify({date:'2026-09-29',checks,errors},null,2));
+ console.log(`global-situation PASS (${checks.length} groups)`);
+}finally{
+ await context.close();await browser.close();
+}

@@ -9,13 +9,14 @@ export function categoryFor(entity) {
 }
 
 /** Shared HTML node, used by case graphs, workspace graphs and frozen report previews. */
-export function entityNode(entity, {selected=false, menu=false, readonly=false, detailAction='entity', input=true, output=true}={}) {
+export function entityNode(entity, {selected=false, menu=false, readonly=false, detailAction='entity', input=true, output=true, iconRenderer=null}={}) {
   const id = esc(entity.id || entity.key), category = categoryFor(entity);
   const state = statusNames[entity.state] !== undefined ? entity.state : 'Idle';
   const title = esc(entity.title || entity.name);
+  const renderedIcon = iconRenderer ? iconRenderer(category,entity) : `<img src="/assets/figma/entity-node/${category}.svg" alt="">`;
   return `<article class="entity-node ${selected?'is-selected':''} ${entity.excluded?'is-excluded':''}" data-node-id="${id}" data-state="${state}" style="left:${entity.x}px;top:${entity.y}px" ${readonly?'':`tabindex="0" data-action="node-select" data-id="${id}"`} aria-label="${title}${statusNames[state]?'，'+statusNames[state]:''}">
     ${input?'<span class="entity-handle input" aria-hidden="true"><i></i></span>':''}
-    <div class="entity-shell"><header class="entity-header"><span class="entity-icon ${category}"><img src="/assets/figma/entity-node/${category}.svg" alt=""></span>
+    <div class="entity-shell"><header class="entity-header"><span class="entity-icon ${category}">${renderedIcon}</span>
       ${readonly?`<strong class="entity-title">${title}</strong>`:`<button class="entity-title" data-action="${detailAction}" data-id="${id}" title="${title} · 查看详情">${title}</button>`}
       ${!['Idle','Waiting'].includes(state)?`<img class="entity-status-icon" src="/assets/figma/entity-node/${state.toLowerCase()}.svg" alt="${state==='Success'?'执行成功，不代表证据已核验':statusNames[state]}">`:''}
     </header><div class="entity-content"><p title="${esc(entity.summary || entity.role)}">${esc(entity.summary || entity.role || '身份待核验')}</p><div class="entity-provenance"><span>${categories[category]}</span><span title="${esc(entity.provenance || entity.source)}">${esc(entity.provenance || entity.source || '来源待补充')}</span></div></div></div>
@@ -24,14 +25,14 @@ export function entityNode(entity, {selected=false, menu=false, readonly=false, 
   </article>`;
 }
 
-export function entityGraph(nodes, links, {id='workspace', width=1376, height=534, ui={}, readonly=false, detailAction='entity'}={}) {
+export function entityGraph(nodes, links, {id='workspace', width=1376, height=534, ui={}, readonly=false, detailAction='entity', iconRenderer=null}={}) {
   const positions = Object.fromEntries(nodes.map(n=>[n.id||n.key,n]));
   return `<div class="entity-graph ${readonly?'is-readonly':''}" data-graph="${id}" data-width="${width}" data-height="${height}" data-zoom="${ui.zoom||'fit'}"><div class="entity-viewport" tabindex="0" aria-label="${readonly?'报告导图预览':'实体关系画布，可横向滚动；选择节点查看来源'}"><div class="entity-extent"><div class="entity-stage" style="width:${width}px;height:${height}px"><svg class="entity-edges" viewBox="0 0 ${width} ${height}" aria-hidden="true">${links.map((e,i)=>{
     const a=positions[e.from],b=positions[e.to]; if(!a||!b)return '';
     const x=a.x+242,y=a.y+25,tx=b.x,ty=b.y+25;
     const d=e.path || (tx>=x?`M ${x} ${y} C ${x+(tx-x)/2} ${y},${x+(tx-x)/2} ${ty},${tx} ${ty}`:`M ${x} ${y} H ${x+18} V ${Math.max(a.y,b.y)+145} H ${tx-18} V ${ty} H ${tx}`);
     return `<path d="${d}" class="${e.running?'running':''} ${e.inferred?'inferred':''}"/>${e.label?`<text x="${e.labelX ?? (x+tx)/2}" y="${e.labelY ?? Math.min(y,ty)-16}" text-anchor="middle">${esc(e.label)}</text>`:''}`;
-  }).join('')}</svg>${nodes.map(n=>entityNode(n,{selected:ui.selected===(n.id||n.key),menu:ui.menu===(n.id||n.key),readonly,detailAction,input:links.some(e=>e.to===(n.id||n.key)),output:links.some(e=>e.from===(n.id||n.key))})).join('')}</div></div></div></div>`;
+  }).join('')}</svg>${nodes.map(n=>entityNode(n,{selected:ui.selected===(n.id||n.key),menu:ui.menu===(n.id||n.key),readonly,detailAction,input:links.some(e=>e.to===(n.id||n.key)),output:links.some(e=>e.from===(n.id||n.key)),iconRenderer})).join('')}</div></div></div></div>`;
 }
 
 /** Native scrolling and a fitted transform keep nodes readable without changing their design dimensions. */

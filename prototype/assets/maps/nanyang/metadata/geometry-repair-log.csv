@@ -1,0 +1,6 @@
+﻿regionCode,sourceCode,name,sourceName,beforeGeometryType,beforeValidity,afterGeometryType,afterValidity,beforeAreaDeg2,afterAreaDeg2,relativeAreaChange,repairMethod
+411302304,411302304000,茶庵乡,茶庵乡,MultiPolygon,Self-intersection[112.654715 32.907442],MultiPolygon,Valid Geometry,0.00582943796999989,0.0058294379699999,1.63669e-15,shapely.make_valid + polygonal-only + MultiPolygon normalization
+411325101,411325101000,夏馆镇,夏馆镇,MultiPolygon,Too few points in geometry component[111.742158 33.458764],MultiPolygon,Valid Geometry,0.0347565095665,0.0347565095665001,3.79322e-15,shapely.make_valid + polygonal-only + MultiPolygon normalization
+411321104,411321104000,南河店镇,南河店镇,MultiPolygon,Self-intersection[112.406206 33.284799],MultiPolygon,Valid Geometry,0.0126187521695,0.0126187521695,-3.29932e-15,shapely.make_valid + polygonal-only + MultiPolygon normalization
+411381114,411381114000,彭桥镇,彭桥镇,MultiPolygon,Self-intersection[111.851592 32.61151],MultiPolygon,Valid Geometry,0.00933477714249994,0.00933477714249998,3.71669e-15,shapely.make_valid + polygonal-only + MultiPolygon normalization
+411381108,411381108000,十林镇,十林镇,MultiPolygon,Too few points in geometry component[111.830049 32.833262],MultiPolygon,Valid Geometry,0.00892601446249998,0.00892601446249998,-3.88689e-16,shapely.make_valid + polygonal-only + MultiPolygon normalization

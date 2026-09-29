@@ -1,0 +1,24 @@
+{
+  "datasetName": "Nanyang Township Dataset",
+  "datasetVersion": "1.0-cleaned",
+  "generatedFrom": "南阳市_411300_批量下载.zip",
+  "sourceSha256": "818dfa7a690cd0df45ad5d297b839146ac050e48057cdac1935858f6f9104a05",
+  "sourceBytes": 9369576,
+  "sourceTownshipFeatureCount": 254,
+  "cleanedFeatureCount": 254,
+  "legalCountyFeatureCount": 247,
+  "managementZoneFeatureCount": 7,
+  "geometryRepairedCount": 5,
+  "allGeometryValidAfterRepair": true,
+  "nameChangedCount": 41,
+  "reference2020Count": 248,
+  "reference2023Count": 249,
+  "sourceVersionAssessment": "mixed-legacy~2018-2020",
+  "referenceSources": {
+    "2020": "modood/Administrative-divisions-of-China commit 78b6f36127ff8dc8e6ca3d82e43ab10619b553d2 (data cutoff 2020-06-30)",
+    "2023": "modood/Administrative-divisions-of-China current 2023 dataset (data cutoff 2023-06-30)"
+  },
+  "usageRestriction": "Source package states academic/education reference only and prohibits commercial use.",
+  "mainGeojsonSha256": "735e1459852c8e8a4a8d5343707337f83587f6f7567ace851b8368a2ad9d1985",
+  "mainGeojsonBytes": 9984401
+}

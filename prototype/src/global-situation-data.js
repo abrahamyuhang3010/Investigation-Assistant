@@ -40,6 +40,8 @@ export const CRIME_METHODS=[
  {id:'LOAN',label:'虚假网络贷款',ratio:.071},
 ];
 
+import {TOWNSHIP_REGIONS,MANAGEMENT_ZONE_REGIONS,MISSING_GEOMETRY_REGIONS,regionTypeLabel} from './nanyang-region-hierarchy.js';
+
 const cityChildren=[
  ['411302','宛城区','411302',232,482,.147959,true],
  ['411303','卧龙区','411303',200,415,.127551,true],
@@ -50,45 +52,24 @@ const cityChildren=[
  ['411323','西峡县','411323',105,218,.066964,true],
  ['411325','内乡县','411325',95,197,.060587,true],
  ['411321','南召县','411321',89,185,.056760,true],
- ['411330','桐柏县','411330',84,174,.053571,false],
+ ['411330','桐柏县','411330',84,174,.053571,true],
  ['411326','淅川县','411326',79,164,.050383,true],
  ['411322','方城县','411322',74,154,.047194,true],
  ['411327','社旗县','411327',73,152,.046556,true],
 ];
-
-const streetNames={
- '411302':['仲景街道','新华街道','东关街道','汉冶街道','白河街道','瓦店镇'],
- '411303':['七一街道','卧龙岗街道','梅溪街道','车站街道','靳岗街道','蒲山镇'],
- '411381':['古城街道','花洲街道','湍河街道','罗庄镇','张村镇','穰东镇'],
- '411328':['滨河街道','文峰街道','兴唐街道','源潭镇','桐寨铺镇','郭滩镇'],
- '411324':['涅阳街道','雪枫街道','玉都街道','石佛寺镇','贾宋镇','晁陂镇'],
- '411329':['汉城街道','汉华街道','城郊乡','沙堰镇','施庵镇','新甸铺镇'],
- '411323':['白羽街道','紫金街道','莲花街道','丹水镇','五里桥镇','回车镇'],
- '411325':['城关镇','湍东镇','赤眉镇','马山口镇','灌涨镇','王店镇'],
- '411321':['城关镇','留山镇','云阳镇','皇路店镇','南河店镇','板山坪镇'],
- '411330':['城关镇','月河镇','吴城镇','毛集镇','淮源镇','平氏镇'],
- '411326':['龙城街道','商圣街道','荆紫关镇','香花镇','厚坡镇','九重镇'],
- '411322':['凤瑞街道','释之街道','赭阳街道','博望镇','独树镇','广阳镇'],
- '411327':['赊店镇','潘河街道','赵河街道','桥头镇','晋庄镇','陌陂镇'],
-};
-const childWeights=[.23,.19,.17,.15,.14,.12];
-
-function makeStreetChildren(parent){
- return streetNames[parent.id].map((name,index)=>({
-  id:`${parent.id}-${index+1}`,name,code:`${parent.code}${String(index+1).padStart(3,'0')}`,
-  level:'STREET',parentId:parent.id,baseCase:Math.round(parent.baseCase*childWeights[index]),
-  baseAlert:Math.round(parent.baseAlert*childWeights[index]),weight:childWeights[index],allowed:true,slot:index,
- }));
-}
-
+// County totals are the canonical synthetic fixture. Township/street values are allocated
+// deterministically below so every real boundary has a complete, internally consistent mock profile.
+cityChildren[7][2]='411325';
 const city={id:'411300',name:'南阳市',code:'411300',level:'CITY',parentId:'410000',baseCase:1568,baseAlert:3256,allowed:true};
 const province={id:'410000',name:'河南省',code:'410000',level:'PROVINCE',parentId:null,baseCase:12640,baseAlert:24820,allowed:true};
 const counties=cityChildren.map(([id,name,code,baseCase,baseAlert,weight,allowed],slot)=>({id,name,code,level:'COUNTY',parentId:city.id,baseCase,baseAlert,weight,allowed,slot}));
-const streets=counties.flatMap(makeStreetChildren);
-const regions=[province,city,...counties,...streets];
+const townships=[...TOWNSHIP_REGIONS,...MISSING_GEOMETRY_REGIONS].map(item=>({...item,level:'TOWNSHIP',regionTypeLabel:regionTypeLabel(item.regionType),baseCase:null,baseAlert:null,weight:1,allowed:true,hasBusinessData:true,businessDataMode:'synthetic'}));
+const managementDisplayCounties={'411371060':['411302','411303'],'411371061':['411303'],'411371401':['411302'],'411372005':['411302'],'411372006':['411302','411303'],'411372007':['411302'],'411372306':['411302','411303','411322']};
+const managementZones=MANAGEMENT_ZONE_REGIONS.map(item=>({...item,level:'MANAGEMENT_ZONE',regionTypeLabel:regionTypeLabel(item.regionType),displayCountyCodes:managementDisplayCounties[item.id]||[],baseCase:null,baseAlert:null,weight:1,allowed:true,hasBusinessData:true,businessDataMode:'synthetic-independent'}));
+const regions=[province,city,...counties,...townships,...managementZones];
 const regionById=new Map(regions.map(region=>[region.id,region]));
 const childrenById=new Map();
-for(const region of regions){if(!region.parentId)continue;const children=childrenById.get(region.parentId)||[];children.push(region);childrenById.set(region.parentId,children)}
+for(const region of regions){if(!region.parentId||region.isManagementZone)continue;const children=childrenById.get(region.parentId)||[];children.push(region);childrenById.set(region.parentId,children)}
 
 export const defaultGlobalScope=()=>({
  regionId:'411300',regionName:'南阳市',regionLevel:'CITY',timeRange:'3M',dataType:'CASE',
@@ -103,10 +84,10 @@ export function getBreadcrumb(id){
  while(current){result.unshift(current);current=current.parentId?regionById.get(current.parentId):null}
  return result.filter(x=>x.level!=='PROVINCE'||x.id==='410000');
 }
-export function getRegionOptions(scope){
- const current=getRegion(scope.regionId);const parent=current.parentId?getRegion(current.parentId):null;
- const ancestors=getBreadcrumb(current.id).filter(item=>item.level!=='PROVINCE');const siblings=parent?getChildren(parent.id):[current];
- return [...ancestors,...siblings,...getChildren(current.id)].filter((item,index,array)=>array.findIndex(x=>x.id===item.id)===index);
+export function getRegionOptions(){
+ // Global Scope intentionally stops at county level: city plus the 13 legal counties.
+ // Township and management-zone records remain map selections and never enter this selector.
+ return [city,...counties];
 }
 
 const hash=text=>[...String(text)].reduce((sum,char)=>sum+char.charCodeAt(0),0);
@@ -145,22 +126,33 @@ function distribute(total,ratios,labels){const values=allocate(total,ratios);ret
 // Only active filters affect the query identity; remembered inactive values do not.
 const filterSeed=scope=>hash([scope.timeRange,...(scope.timeRange==='CUSTOM'?[scope.customStart,scope.customEnd]:[]),scope.dataType,...(scope.dataType==='CASE'?[scope.caseCategory,scope.caseSubCategory,scope.crimeMethod]:[scope.alertCategory])].join('-'));
 
-/** A canonical RegionMetric per adcode. Selection/zoom/collapse never change metrics. */
+/** A canonical synthetic RegionMetric for every selectable map region. */
 export function getRegionMetrics(inputScope){
  const scope={...defaultGlobalScope(),...inputScope},seed=filterSeed(scope);
  const total=roundTotal(scope.dataType==='CASE'?city.baseCase:city.baseAlert,metricFactor(scope),seed);
- const result=new Map();
- const category=scope.dataType==='CASE'?caseCategoryFor(scope.caseCategory):alertCategoryFor(scope.alertCategory);
+ const result=new Map(),category=scope.dataType==='CASE'?caseCategoryFor(scope.caseCategory):alertCategoryFor(scope.alertCategory);
+ const typeWeight={street:1.22,town:1.08,township:.92,ethnic_township:.9,farm:.72,forestFarm:.68,managementArea:.82,industrialPark:1.12,other:.8};
+ function metricFor(region,count){
+  return {...region,adcode:region.code,count,hasBusinessData:true,businessDataMode:region.businessDataMode||'synthetic',comparison:((seed+hash(region.id))%97-32)/10,topCategory:category.id==='ALL'?(scope.dataType==='CASE'?CASE_CATEGORIES[1].label:ALERT_CATEGORIES[1].label):category.label,topMethod:methodFor(scope.crimeMethod==='ALL'?'REBATE':scope.crimeMethod).label};
+ }
  function visit(region,count){
-  const children=getChildren(region.id);
-  const metric={...region,adcode:region.code,count,comparison:((seed+hash(region.id))%97-32)/10,
-   topCategory:category.id==='ALL'?(scope.dataType==='CASE'?CASE_CATEGORIES[1].label:ALERT_CATEGORIES[1].label):category.label,
-   topMethod:methodFor(scope.crimeMethod==='ALL'?'REBATE':scope.crimeMethod).label};
-  result.set(region.id,metric);
-  const counts=allocate(count,children.map((r,i)=>(r.weight||1)*(.8+((seed+hash(r.id)*7+i)%41)/100)));
+  result.set(region.id,metricFor(region,count));
+  const childLevel=region.level==='CITY'?'COUNTY':region.level==='COUNTY'?'TOWNSHIP':null;
+  if(!childLevel)return;
+  const children=getChildren(region.id).filter(item=>item.level===childLevel);
+  const counts=allocate(count,children.map((r,i)=>(r.weight||1)*(typeWeight[r.regionType]||1)*(.8+((seed+hash(r.id)*7+i)%41)/100)));
   children.forEach((child,i)=>visit(child,counts[i]));
  }
- visit(city,total);return result;
+ visit(city,total);
+ // Management-zone polygons overlap legal counties, so their synthetic metrics are intentionally
+ // independent display metrics and are never included in the legal city/county roll-up.
+ for(const zone of managementZones){
+  const hosts=zone.displayCountyCodes.map(id=>result.get(id)?.count||0).filter(Boolean);
+  const hostAverage=hosts.length?hosts.reduce((sum,value)=>sum+value,0)/hosts.length:total/13;
+  const count=Math.max(0,Math.round(hostAverage*(.055+((seed+hash(zone.id))%31)/1000)));
+  result.set(zone.id,metricFor(zone,count));
+ }
+ return result;
 }
 function trend(total,scope){
  const time=resolvedTime(scope),end=new Date(`${scope.timeRange==='CUSTOM'?scope.customEnd:'2026-09-21'}T12:00:00Z`);
@@ -176,39 +168,28 @@ function categoryCards(scope,regionId){
   active:(scope.dataType==='CASE'?scope.caseCategory:scope.alertCategory)===item.id}));
 }
 
+function noBusinessView(scope,region){
+ const category=scope.dataType==='CASE'?caseCategoryFor(scope.caseCategory):alertCategoryFor(scope.alertCategory);
+ return {scope,region,metric:{...region,count:null,hasBusinessData:false,comparison:null},total:null,totalText:'—',trend:[],categoryCards:[],regions:[],time:resolvedTime(scope),category,hasBusinessData:false,victim:{total:null,totalText:'—',change:null,gender:[],age:[],occupations:[],methods:[],unknownOccupation:null},alerts:{typeDistribution:[],hours:[],addresses:[],repeated:null,repeatedRate:null},top:{age:'',occupation:'',gender:'',method:''},updatedAt:'2026-09-21 09:36',partial:false,completeness:{occupation:'unavailable'}};
+}
 export function getSituationView(inputScope, metrics, contextRegionId){
  const scope={...defaultGlobalScope(),...inputScope};metrics=metrics||getRegionMetrics(scope);
- const region=getRegion(contextRegionId||scope.regionId),metric=metrics.get(region.id)||metrics.get(city.id);
- const total=metric.count,seed=filterSeed(scope)+hash(region.id);
+ const region=getRegion(contextRegionId||scope.regionId);
+ const metric=metrics.get(region.id)||metrics.get(city.id),total=metric.count,seed=filterSeed(scope)+hash(region.id);
  const victimTotal=scope.dataType==='CASE'?Math.round(total*(.88+(seed%7)/100)):0;
  const male=.58+(seed%8)/100,gender=distribute(victimTotal,[male,1-male],['男性','女性']);
- const ageWeights=[.08,.32+(seed%7)/100,.26,.16,.1,.06];
- const age=distribute(victimTotal,ageWeights,['20岁以下','20～30岁','30～40岁','40～50岁','50～60岁','60岁以上']);
- const occupationLabels=['自由职业','学生','企业职员','个体经营','技术人员','其他 / 未知'];
- const occupationAll=distribute(victimTotal,[.27,.19,.17,.14,.11,.12],occupationLabels);
- const occupations=occupationAll.slice(0,5);
- const methods=CRIME_METHODS.slice(1).map(item=>({id:item.id,label:item.label,
-  value:scope.crimeMethod==='ALL'?getRegionMetrics({...scope,crimeMethod:item.id}).get(region.id)?.count||0:scope.crimeMethod===item.id?total:0,
-  active:scope.crimeMethod===item.id})).sort((a,b)=>b.value-a.value);
- const regions=getChildren(region.id).map(child=>metrics.get(child.id)).filter(Boolean).sort((a,b)=>b.count-a.count);
- const time=resolvedTime(scope),category=scope.dataType==='CASE'?caseCategoryFor(scope.caseCategory):alertCategoryFor(scope.alertCategory);
- const topAge=age.reduce((a,b)=>a.value>=b.value?a:b),topGender=gender.reduce((a,b)=>a.value>=b.value?a:b);
- const topMethod=methods.reduce((a,b)=>a.value>=b.value?a:b);
- const repeated=Math.round(total*(.087+(seed%24)/1000));
- const alerts={
-  typeDistribution:category.id==='ALL'?distribute(total,[.205,.187,.168,.143,.074,.223],['盗窃','纠纷','治安','交通','自然灾害','其他']):[{label:category.label,value:total}],
-  hours:distribute(total,[.23,.19,.16,.14,.28],['18:00–21:00','09:00–12:00','21:00–24:00','14:00–17:00','其他时段']),
-  addresses:regions.slice(0,5).map(item=>({label:item.name,value:item.count})),
-  repeated,repeatedRate:total?repeated/total*100:0,
- };
- return {scope,region,metric,total,totalText:number(total),trend:trend(total,scope),categoryCards:categoryCards(scope,region.id),regions,time,category,
-  victim:{total:victimTotal,totalText:number(victimTotal),change:metric.comparison,gender,age,occupations,methods,unknownOccupation:occupationAll[5].value},alerts,
-  top:{age:topAge.label,occupation:occupations[0].label,gender:topGender.label,method:topMethod.label},
-  updatedAt:'2026-09-21 09:36',partial:region.id==='411303',completeness:{occupation:region.id==='411303'?'delayed':'available'}};
+ const age=distribute(victimTotal,[.08,.32+(seed%7)/100,.26,.16,.1,.06],['20岁以下','20～30岁','30～40岁','40～50岁','50～60岁','60岁以上']);
+ const occupationAll=distribute(victimTotal,[.27,.19,.17,.14,.11,.12],['自由职业','学生','企业职员','个体经营','技术人员','其他 / 未知']),occupations=occupationAll.slice(0,5);
+ const methods=CRIME_METHODS.slice(1).map(item=>({id:item.id,label:item.label,value:scope.crimeMethod==='ALL'?getRegionMetrics({...scope,crimeMethod:item.id}).get(region.id)?.count||0:scope.crimeMethod===item.id?total:0,active:scope.crimeMethod===item.id})).sort((a,b)=>b.value-a.value);
+ const childLevel=region.level==='CITY'?'COUNTY':'TOWNSHIP';
+ const regions=getChildren(region.id).filter(child=>child.level===childLevel).map(child=>metrics.get(child.id)||child).sort((a,b)=>(b.count||0)-(a.count||0)||a.code.localeCompare(b.code));
+ const time=resolvedTime(scope),category=scope.dataType==='CASE'?caseCategoryFor(scope.caseCategory):alertCategoryFor(scope.alertCategory),topAge=age.reduce((a,b)=>a.value>=b.value?a:b),topGender=gender.reduce((a,b)=>a.value>=b.value?a:b),topMethod=methods.reduce((a,b)=>a.value>=b.value?a:b),repeated=Math.round(total*(.087+(seed%24)/1000));
+ const alerts={typeDistribution:category.id==='ALL'?distribute(total,[.205,.187,.168,.143,.074,.223],['盗窃','纠纷','治安','交通','自然灾害','其他']):[{label:category.label,value:total}],hours:distribute(total,[.23,.19,.16,.14,.28],['18:00–21:00','09:00–12:00','21:00–24:00','14:00–17:00','其他时段']),addresses:distribute(total,[.34,.27,.21,.18],[`${region.name}中心片区`,`${region.name}东部片区`,`${region.name}西部片区`,'其他区域']),repeated,repeatedRate:total?repeated/total*100:0};
+ return {scope,region,metric,total,totalText:number(total),trend:trend(total,scope),categoryCards:categoryCards(scope,region.id),regions,time,category,hasBusinessData:true,victim:{total:victimTotal,totalText:number(victimTotal),change:metric.comparison,gender,age,occupations,methods,unknownOccupation:occupationAll[5].value},alerts,top:{age:topAge.label,occupation:occupations[0].label,gender:topGender.label,method:topMethod.label},updatedAt:'2026-09-21 09:36',partial:region.id==='411303',completeness:{occupation:region.id==='411303'?'delayed':'available'}};
 }
 export function getSituationSnapshot(scope){
- const metrics=getRegionMetrics(scope),view=getSituationView(scope,metrics);
- const selected=view.regions.find(r=>r.id===scope.selectedRegion&&r.allowed!==false);
+ const metrics=getRegionMetrics(scope),view=getSituationView(scope,metrics),candidate=scope.selectedRegion?getRegion(scope.selectedRegion):null;
+ const selected=candidate?.id===scope.selectedRegion&&candidate.allowed!==false?candidate:null;
  return {view,context:selected?getSituationView(scope,metrics,selected.id):view,metrics};
 }
 export function getSubcategoryOptions(scope){return caseCategoryFor(scope.caseCategory).subcategories}

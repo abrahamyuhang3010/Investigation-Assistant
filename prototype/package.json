@@ -10,7 +10,8 @@
     "test:smoke": "node tests/smoke.mjs",
     "test:case-workflow": "node tests/case-workflow.mjs",
     "test:global-situation": "node tests/global-situation.mjs",
-    "test:case-detail": "node tests/case-detail.mjs"
+    "test:case-detail": "node tests/case-detail.mjs",
+    "validate:map-data": "node scripts/validate-nanyang-map-data.mjs"
   },
   "description": "PRD aligned dependency-free interactive frontend prototype"
 }

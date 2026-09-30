@@ -2,6 +2,7 @@ import {state,current,uid} from './state.js';
 import {createDemoSeed} from './super-search-data.js';
 import {FUND_SESSION_ID,createFundHistorySession,createHistoricalFundSnapshot} from './fixtures/historical-fund-case.js';
 import {NETWORK_SESSION_ID,createNetworkHistorySession,createHistoricalNetworkSnapshot} from './fixtures/historical-network-case.js';
+import {PERSON_SESSION_ID,createPersonHistorySession,createHistoricalPersonSnapshot} from './fixtures/historical-person-case.js';
 
 const SCHEMA_VERSION=6;
 const INFO='information-retrieval-agent', ANALYSIS='data-analysis-agent';
@@ -125,11 +126,15 @@ function createDemoConversation(seed){
  runs.push(auth,running);return runs;
 }
 const historicalSessionFactories=new Map([
+ [PERSON_SESSION_ID,createPersonHistorySession],
  [NETWORK_SESSION_ID,createNetworkHistorySession],
  [FUND_SESSION_ID,createFundHistorySession],
 ]);
 function virtualHistoricalSessions(){
  return [...historicalSessionFactories.values()].map(factory=>factory(state.org));
+}
+export function ensurePersonHistorySession(){
+ return state.sessions.find(session=>session.id===PERSON_SESSION_ID&&session.org===state.org)||createPersonHistorySession(state.org);
 }
 export function ensureFundHistorySession(){
  return state.sessions.find(session=>session.id===FUND_SESSION_ID&&session.org===state.org)||createFundHistorySession(state.org);
@@ -153,6 +158,7 @@ export function materializeHistoricalSession(id){
  return session;
 }
 function createSession(){
+ if(current()?.id===PERSON_SESSION_ID)return createHistoricalPersonSnapshot(SCHEMA_VERSION);
  if(current()?.id===NETWORK_SESSION_ID)return createHistoricalNetworkSnapshot(SCHEMA_VERSION);
  if(current()?.id===FUND_SESSION_ID)return createHistoricalFundSnapshot(SCHEMA_VERSION);
  const seed=createDemoSeed(),session=current(),fresh=session?.taskId;
@@ -260,12 +266,12 @@ export function startSuperQuery(text,options={}){
  if(!canStartSuperQuery(latestRun(ss)?.query))throw Error('当前最新一轮尚未结束，请先完成、终止或等待其进入终态。');
  const run=prepareRun(createDemoSeed(),ss.queries.length+1,text);
  applyComposerOptions(run,options);
- if(['fund-v2','network-v1'].includes(ss.fixture)){
+ if(['fund-v2','network-v1','person-v1'].includes(ss.fixture)){
   // Historical fixtures are immutable: never pass their follow-ups to the unrelated demo scheduler.
   const source=ss.queries.find(item=>item.query.historical).query;
   completeQuickRun(run);
   const followupMessage=ss.followupMessage||'已记录本次追问及所选资金实体 / 关系。当前 Demo 仅提供该已完成历史证据，不连接真实调证服务，本轮没有新增流水、账户或研判结论。';
-  Object.assign(run.query,{historicalFollowup:true,rewrittenTaskName:'核对历史证据范围并保留追问上下文',scope:`${ss.fixture==='network-v1'?'网络研判':'资金研判'}历史快照 · 未发起新增调证`,scopeDetails:structuredClone(source.scopeDetails),subtasks:[{id:`${run.query.id}-CONTEXT`,index:'01',name:'保留追问上下文并说明证据边界',status:'done',planVersion:1}],recommendedQueries:[],finalConclusion:followupMessage});
+  Object.assign(run.query,{historicalFollowup:true,rewrittenTaskName:'核对历史证据范围并保留追问上下文',scope:`${ss.fixture==='network-v1'?'网络研判':ss.fixture==='person-v1'?'人员研判':'资金研判'}历史快照 · 未发起新增调证`,scopeDetails:structuredClone(source.scopeDetails),subtasks:[{id:`${run.query.id}-CONTEXT`,index:'01',name:'保留追问上下文并说明证据边界',status:'done',planVersion:1}],recommendedQueries:[],finalConclusion:followupMessage});
   run.graphSeed={entities:[],relations:[]};
  }else if(run.query.deepThinking)resetRun(run,'awaiting_scope');else completeQuickRun(run);
  ss.queries.push(run);ss.activeQueryId=run.query.id;ss.draft='';ss.ui.expandedFolders.push(run.query.id);ss.ui.expandedTools=[];ss.ui.followLatest=true;ss.ui.hasNewProgress=false;

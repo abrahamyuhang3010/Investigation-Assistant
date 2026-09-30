@@ -30,7 +30,7 @@ export function xlsxBlob(rows){return zip({
 export function artifactPreview(a){
  if(a.pending)return '<p>文件尚未生成。</p>';
  const type=a.type.toLowerCase();
- if(['fund-v2','network-v1'].includes(a.fixture)&&type==='pdf'&&a.content)return `<article class="ss-pdf-preview"><h2>${esc(a.name.replace(/\.pdf$/,''))}</h2>${String(a.content||'').split('\n').map(line=>`<p>${esc(line)}</p>`).join('')}</article>`;
+ if(['fund-v2','network-v1','person-v1'].includes(a.fixture)&&type==='pdf'&&a.content)return `<article class="ss-pdf-preview"><h2>${esc(a.name.replace(/\.pdf$/,''))}</h2>${String(a.content||'').split('\n').map(line=>`<p>${esc(line)}</p>`).join('')}</article>`;
  if(a.fixture==='fund-v2'&&type==='png'&&a.downloadUrl)return `<img class="ss-image-preview" src="${esc(a.downloadUrl)}" alt="${esc(a.name)}"><p>${esc(a.validationSummary)}</p>`;
  if(a.fixture==='network-v1'&&['png','jpg','jpeg','webp','gif'].includes(type)&&!a.dataUrl)return `<article class="ss-media-placeholder"><strong>${esc(a.name)}</strong><p>${esc(a.content||'历史图片附件仅保留元数据。')}</p><small>${esc(a.validationSummary||'虚构模拟材料')}</small></article>`;
  if(a.fixture==='network-v1'&&type==='apk')return `<article class="ss-media-placeholder"><strong>APK 元数据快照</strong><p>${esc(a.content||'历史 APK 不包含可执行二进制。')}</p><dl><div><dt>文件名</dt><dd>${esc(a.name)}</dd></div><div><dt>大小</dt><dd>${esc(a.size)}</dd></div></dl></article>`;

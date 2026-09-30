@@ -24,11 +24,11 @@ await test('两侧独立收起/展开、刷新持久化和收起后的实时任�
 });
 await test('任务列表精简、搜索持久化、会话菜单键盘、置顶及重命名/归档',async()=>{
  const sidebar=await p.locator('.ss-sidebar').innerText();assert(!/检索计划|本地快照|历史会话与|会话 S-|查看全部历史/.test(sidebar));
- const search=p.locator('#super-history-search');await search.fill('不存在的历史对话');assert.equal(await p.locator('.ss-session-row:visible').count(),0);assert(await p.locator('.ss-history-empty').isVisible());await p.reload();assert.equal(await search.inputValue(),'不存在的历史对话');await search.fill('');assert.equal(await p.locator('.ss-session-row:visible').count(),2);
+ const search=p.locator('#super-history-search');await search.fill('不存在的历史对话');assert.equal(await p.locator('.ss-session-row:visible').count(),0);assert(await p.locator('.ss-history-empty').isVisible());await p.reload();assert.equal(await search.inputValue(),'不存在的历史对话');await search.fill('');const initialSessionCount=await p.locator('.ss-session-row:visible').count();assert.equal(initialSessionCount,4);
  await click('super-session-menu','[data-id="S-0819"]');assert(await p.locator('.ss-session-menu').isVisible());await p.keyboard.press('ArrowDown');assert.equal(await p.evaluate(()=>document.activeElement.dataset.action),'super-session-pin');await p.keyboard.press('Escape');assert.equal(await p.locator('.ss-session-menu').count(),0);
  await click('super-session-menu','[data-id="S-0819"]');await click('super-session-pin','[data-id="S-0819"]');assert.equal(await p.locator('.ss-session-row').first().getAttribute('data-session-id'),'S-0819');await p.reload();assert.equal(await p.locator('.ss-session-row').first().getAttribute('data-session-id'),'S-0819');
  await click('super-session-menu','[data-id="S-0819"]');await click('super-session-rename','[data-id="S-0819"]');await p.locator('#overlay input[name="name"]').fill('历史检索·重命名测试');await p.locator('#overlay button[type="submit"]').click();assert.match(await p.locator('.ss-session-row').first().innerText(),/历史检索·重命名测试/);
- await click('super-session-menu','[data-id="S-0819"]');await click('super-session-archive','[data-id="S-0819"]');assert.match(await p.locator('#overlay').innerText(),/归档只影响/);await p.locator('#overlay .btn.primary').click();assert.equal(await p.locator('.ss-session-row').count(),1);
+ await click('super-session-menu','[data-id="S-0819"]');await click('super-session-archive','[data-id="S-0819"]');assert.match(await p.locator('#overlay').innerText(),/归档只影响/);await p.locator('#overlay .btn.primary').click();assert.equal(await p.locator('.ss-session-row').count(),initialSessionCount-1);
  await click('new-search');await p.waitForURL('**/#/PG04');await p.locator('#composer-form').waitFor({state:'visible'});
 });
 await test('上传 SVG 资源、紧凑工具行、文件资源图标和来源/下载操作',async()=>{

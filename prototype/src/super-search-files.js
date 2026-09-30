@@ -30,6 +30,11 @@ export function xlsxBlob(rows){return zip({
 export function artifactPreview(a){
  if(a.pending)return '<p>文件尚未生成。</p>';
  const type=a.type.toLowerCase();
+ if(['fund-v2','network-v1'].includes(a.fixture)&&type==='pdf'&&a.content)return `<article class="ss-pdf-preview"><h2>${esc(a.name.replace(/\.pdf$/,''))}</h2>${String(a.content||'').split('\n').map(line=>`<p>${esc(line)}</p>`).join('')}</article>`;
+ if(a.fixture==='fund-v2'&&type==='png'&&a.downloadUrl)return `<img class="ss-image-preview" src="${esc(a.downloadUrl)}" alt="${esc(a.name)}"><p>${esc(a.validationSummary)}</p>`;
+ if(a.fixture==='network-v1'&&['png','jpg','jpeg','webp','gif'].includes(type)&&!a.dataUrl)return `<article class="ss-media-placeholder"><strong>${esc(a.name)}</strong><p>${esc(a.content||'历史图片附件仅保留元数据。')}</p><small>${esc(a.validationSummary||'虚构模拟材料')}</small></article>`;
+ if(a.fixture==='network-v1'&&type==='apk')return `<article class="ss-media-placeholder"><strong>APK 元数据快照</strong><p>${esc(a.content||'历史 APK 不包含可执行二进制。')}</p><dl><div><dt>文件名</dt><dd>${esc(a.name)}</dd></div><div><dt>大小</dt><dd>${esc(a.size)}</dd></div></dl></article>`;
+ if(a.fixture==='fund-v2'&&type==='parquet')return `<p>标准化关键摘录 · ${a.recordCount} 条 · 下载为真实 Parquet 文件</p><pre class="ss-preview-content">${esc(JSON.stringify(a.records,null,2))}</pre>`;
  if(['xlsx','csv'].includes(type)&&(!a.dataUrl||a.rows)){const rows=artifactRows(a);return `<div class="ss-table-preview"><table><thead><tr>${rows[0].map(v=>`<th>${esc(v)}</th>`).join('')}</tr></thead><tbody>${rows.slice(1).map(row=>`<tr>${row.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="muted small">${a.sourceType==='user_upload'?'用户上传内容（XLSX 最多显示首张表的 200 条数据、30 列；公式仅显示缓存值）':'合成样本预览；表格仅含演示行，不是完整业务明细。'}</p>`;}
  if(['png','jpg','jpeg','webp','gif'].includes(type)&&a.dataUrl)return `<img class="ss-image-preview" src="${esc(a.dataUrl)}" alt="${esc(a.name)}">`;
  if(type==='pdf'&&!a.dataUrl&&a.dataGap)return `<article class="ss-pdf-preview"><h2>数据缺口报告</h2><p>合成演示 · 非正式研判文书</p><p>部分来源返回空结果，缺少必要输入，无法完成统计与关系核验。未发现不代表不存在，请补充材料后重新查询。</p><p>${esc(a.queryId)} / ${esc(a.subtaskId)} / ${esc(a.toolCallId)}</p></article>`;
@@ -42,9 +47,10 @@ export function artifactPreview(a){
 /** Rasterizes the same report preview into a valid one-page PDF, preserving Chinese glyphs without a bundled font. */
 async function pdfBlob(a){
  const canvas=document.createElement('canvas');canvas.width=1190;canvas.height=1684;const c=canvas.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,1190,1684);c.fillStyle='#111827';
- let y=120;const lines=['资金分析报告','合成演示 · 非正式研判文书','一、任务与范围','张三合成样本：身份、银行卡及第三方支付账户。','统计窗口：2026 年 8 月。','二、样本统计','流入 ¥286,400；流出 ¥249,800；净流入 ¥36,600。','三、待核验线索','6 笔高频交易命中示例规则，1 条两跳资金路径待人工复核。','规则命中不构成违法认定。','四、来源与限制',`${a.queryId} / ${a.subtaskId} / ${a.toolCallId}`,'来源：开户信息、银行流水、第三方账号及分析结果。','仅合成数据，未接入真实业务系统。'];
+ let y=110;let lines=['资金分析报告','合成演示 · 非正式研判文书','一、任务与范围','张三合成样本：身份、银行卡及第三方支付账户。','统计窗口：2026 年 8 月。','二、样本统计','流入 ¥286,400；流出 ¥249,800；净流入 ¥36,600。','三、待核验线索','6 笔高频交易命中示例规则，1 条两跳资金路径待人工复核。','规则命中不构成违法认定。','四、来源与限制',`${a.queryId} / ${a.subtaskId} / ${a.toolCallId}`,'来源：开户信息、银行流水、第三方账号及分析结果。','仅合成数据，未接入真实业务系统。'];
+ if(a.content)lines=String(a.content).split('\n').flatMap(line=>{const text=line.trim();if(!text)return [''];const chunks=[];for(let i=0;i<text.length;i+=36)chunks.push(text.slice(i,i+36));return chunks;});
  if(a.dataGap)lines.splice(0,lines.length,'数据缺口报告','合成演示 · 非正式研判文书','部分来源返回空结果，缺少必要输入。','无法完成统计与关系核验。','未发现不代表不存在，请补充材料后重新查询。',`${a.queryId} / ${a.subtaskId} / ${a.toolCallId}`);
- for(let i=0;i<lines.length;i++){c.font=`${i===0?'bold 42':'26'}px sans-serif`;c.fillText(lines[i],85,y);y+=i===0?85:65;}
+ lines=lines.slice(0,25);for(let i=0;i<lines.length;i++){c.font=`${i===0?'bold 38':'24'}px sans-serif`;c.fillText(lines[i],70,y);y+=i===0?72:56;}
  const jpeg=new Uint8Array(await (await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.94))).arrayBuffer());
  const objects=[encode('<< /Type /Catalog /Pages 2 0 R >>'),encode('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'),encode('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>'),new Blob([encode(`<< /Type /XObject /Subtype /Image /Width 1190 /Height 1684 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`),jpeg,encode('\nendstream')]),encode(`<< /Length ${encode('q 595 0 0 842 0 0 cm /Im0 Do Q\n').length} >>\nstream\nq 595 0 0 842 0 0 cm /Im0 Do Q\nendstream`)];
  const parts=[encode('%PDF-1.4\n')],offsets=[0];let position=parts[0].length;
@@ -54,7 +60,8 @@ async function pdfBlob(a){
 export async function downloadSuperArtifact(a){
  if(!a||a.pending)throw Error('文件尚未生成。');
  let blob;
- if(a.dataUrl)blob=await (await fetch(a.dataUrl)).blob();
+ if(a.downloadUrl){const response=await fetch(a.downloadUrl);if(!response.ok)throw Error('历史文件不可用，请重新构建 Demo 资产。');blob=await response.blob();}
+ else if(a.dataUrl)blob=await (await fetch(a.dataUrl)).blob();
  else if(a.type==='XLSX')blob=xlsxBlob(artifactRows(a));
  else if(a.type==='PDF')blob=await pdfBlob(a);
  else if(a.type==='ZIP')blob=zip({'README.txt':'用户上传区域的合成演示材料，不包含真实个人数据。'});

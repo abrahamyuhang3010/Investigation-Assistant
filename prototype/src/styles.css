@@ -14,3 +14,95 @@
 /* Standalone workspace: nested execution metadata must not collapse into narrow columns. */
 .workspace-overview{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}.workspace-overview>div{min-width:0}.workspace-execution .grid-3{grid-template-columns:1fr}.workspace-execution .page-heading{flex-direction:column;gap:12px}.workspace-execution .kv{grid-template-columns:110px minmax(0,1fr)}
 @media(max-width:1279px){.workspace-overview{grid-template-columns:1fr}}
+
+/* 案件研判一级工作台切换 */
+.case-workbench-switcher{position:relative;width:156px;flex:0 0 156px;border-radius:9px;white-space:nowrap}
+.case-workbench-toggle{width:100%;height:44px;display:grid;grid-template-columns:minmax(0,1fr) 18px;align-items:center;gap:8px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--muted);text-align:left}
+.case-workbench-switcher.active .case-workbench-toggle{color:var(--text);background:var(--selected);font-weight:600}
+.case-workbench-toggle:hover,.case-workbench-toggle[aria-expanded=true]{color:var(--text);background:var(--hover)}
+.case-workbench-switcher.active .case-workbench-toggle:hover,.case-workbench-switcher.active .case-workbench-toggle[aria-expanded=true]{background:var(--hover)}
+.case-workbench-toggle:focus-visible{outline:3px solid var(--brand);outline-offset:3px}
+.case-workbench-label{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.case-workbench-trigger-icon{width:22px;height:22px}
+.case-workbench-toggle .case-workbench-arrow{width:16px;height:16px;justify-self:end;transition:transform .15s ease}
+.case-workbench-toggle[aria-expanded=true] .case-workbench-arrow{transform:rotate(180deg)}
+.case-workbench-menu{position:absolute;top:calc(100% + 8px);left:0;z-index:60;width:156px;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 20px #10182812;opacity:0;visibility:hidden;transform:translateY(-5px) scale(.99);transform-origin:top left;pointer-events:none;transition:opacity .15s ease,transform .15s ease,visibility 0s linear .15s}
+[data-theme=dark] .case-workbench-menu{box-shadow:0 8px 20px #0004}
+.case-workbench-menu.is-open{opacity:1;visibility:visible;transform:translateY(0) scale(1);pointer-events:auto;transition-delay:0s}
+.case-workbench-menu[hidden]{display:none}
+.case-workbench-menu ul{list-style:none;margin:0;padding:0}
+.case-workbench-menu li{margin:0;padding:0}
+.global-nav .case-workbench-menu a{display:grid;grid-template-columns:24px minmax(0,1fr) 16px;align-items:center;gap:8px;min-height:42px;padding:7px 8px;border-radius:7px;color:var(--text);font-size:13px}
+.global-nav .case-workbench-menu a:hover,.global-nav .case-workbench-menu a:focus-visible{background:var(--hover);text-decoration:none}
+.global-nav .case-workbench-menu a.active{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.global-nav .case-workbench-menu a.is-pending{background:var(--brand-soft);color:var(--brand)}
+.case-workbench-icon{display:block;width:24px;height:24px;object-fit:contain;flex:0 0 auto}
+.case-workbench-menu .icon{width:15px;height:15px}
+@media(max-width:860px){.global-nav{gap:4px}.global-nav>a{padding:10px 12px}.case-workbench-switcher{width:144px;flex-basis:144px}.case-workbench-menu{width:144px;left:0;right:auto}}
+@media(max-width:620px){
+  .global-nav>a{padding:9px 6px;font-size:12px}
+  .case-workbench-switcher{width:92px;flex-basis:92px}
+  .case-workbench-toggle{height:40px;grid-template-columns:minmax(0,1fr) 16px;gap:4px;padding:0 8px;font-size:12px}
+  .case-workbench-trigger-icon{display:none}
+  .header-end>[data-action="notifications"]{display:none}
+  .case-workbench-menu{position:fixed;top:64px;left:12px;right:12px;width:auto;transform-origin:top center}
+}
+@media(prefers-reduced-motion:reduce){.case-workbench-menu,.case-workbench-toggle .case-workbench-arrow{transition:none}.case-workbench-menu{transform:none}}
+
+/* 一级导航：统一宽度、收紧工作台名称与箭头间距，并在桌面端居中。 */
+.global-nav{--primary-nav-width:128px;justify-content:center}
+.global-nav>a,.global-nav>.case-workbench-switcher{width:var(--primary-nav-width);flex:0 0 var(--primary-nav-width)}
+.global-nav>a{min-height:44px;display:flex;align-items:center;justify-content:center;padding:0 12px;overflow:hidden;text-overflow:ellipsis}
+.brand:hover,.global-nav>a:hover{text-decoration:none}
+.case-workbench-switcher{width:var(--primary-nav-width);flex-basis:var(--primary-nav-width)}
+.case-workbench-toggle{grid-template-columns:auto 16px;justify-content:center;gap:8px}
+.case-workbench-toggle .case-workbench-arrow{justify-self:center}
+@media(min-width:1280px){
+  .header{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}
+  .brand{justify-self:start}
+  .global-nav{flex:none;justify-self:center}
+  .header-end{justify-self:end}
+}
+@media(max-width:860px){
+  .global-nav{--primary-nav-width:116px}
+  .global-nav>a{padding:0 8px}
+  .case-workbench-toggle{padding:0 8px}
+}
+@media(max-width:620px){
+  .global-nav{--primary-nav-width:clamp(52px,calc((100vw - 136px)/4),92px)}
+}
+
+/* 所有页面滚动条默认隐藏，仅在横向或纵向滚动发生时短暂显示。 */
+html,
+body,
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+html.is-scrolling,
+body.is-scrolling,
+.is-scrolling {
+  scrollbar-color: color-mix(in srgb,var(--subtle) 58%,transparent) transparent;
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+html.is-scrolling::-webkit-scrollbar-thumb,
+body.is-scrolling::-webkit-scrollbar-thumb,
+.is-scrolling::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb,var(--subtle) 58%,transparent);
+}

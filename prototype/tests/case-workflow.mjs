@@ -20,10 +20,15 @@ const prepare=async()=>{await openCase();for(let i=0;i<3;i++){await submit('case
 const complete=async()=>{await prepare();await click('case-run');for(let i=0;i<3;i++)await click('case-advance');assert.equal((await flow()).run,'Success')};
 const shot=async name=>{await page.locator('#toast').evaluate(el=>el.classList.remove('show'));await page.screenshot({path:path.join(out,name+'.png'),fullPage:false})};
 async function test(id,name,fn){context=await browser.newContext({viewport:{width:1440,height:1080},acceptDownloads:true});page=await context.newPage();page.setDefaultTimeout(7000);page.on('pageerror',e=>errors.push({id,message:e.message}));await page.goto(base+'/#/PG12');try{await fn();results.push({id,name,status:'PASS'})}catch(e){results.push({id,name,status:'FAIL',error:e.message});await shot(id+'-failure')}finally{console.log(results.at(-1));await context.close()}}
-await test('CASE01','案件列表搜索、关注、显示列与刷新保存',async()=>{
- assert.equal(await page.locator('.case-table tbody tr').count(),2);await shot('list');
- await click('case-tab','[data-tab="favorite"]');assert.equal(await page.locator('.case-table tbody tr').count(),1);
- await click('case-columns');await page.locator('[name=columns][value=amount]').check();await submit();await click('case-save-view');await page.reload();assert(await page.getByRole('columnheader',{name:'损失金额'}).isVisible());
+await test('CASE01','案件列表搜索、筛选、冻结列、显示列与刷新保存',async()=>{
+ assert.equal(await page.locator('.case-table tbody tr').count(),2);
+ assert.deepEqual((await page.locator('.case-table thead th').allTextContents()).map(x=>x.trim()),['','序号','案件名称/编号','研判状态','笔录数','现勘数','研判结果','立案单位','受理时间','立案时间','简要案情','案件类型','案件状态','更新时间','受理单位','操作']);
+ await shot('list');
+ await click('case-tab','[data-tab="favorite"]');assert.equal(await page.locator('.case-table tbody tr').count(),1);await click('clear-case-filter');
+ await click('case-filters');assert.equal(await page.locator('#case-advanced-filter').count(),1);assert.deepEqual(await page.locator('#case-advanced-filter .case-filter-item>span:first-child').allTextContents(),['案件类型','研判状态','案件状态','立案单位','受理时间','立案时间','更新时间']);
+ await page.locator('[name=category]').selectOption('资金线索');assert.equal(await page.locator('.case-table tbody tr').count(),1);await click('case-filters');assert.equal(await page.locator('#case-advanced-filter').count(),0);
+ await click('case-columns');assert.equal(await page.locator('.case-column-option').count(),18);for(const key of ['name','acceptedAt','filedAt']){const input=page.locator(`[data-case-column="${key}"]`);assert(await input.isChecked());assert(await input.isDisabled());}
+ await page.locator('[data-case-column=amount]').check();await click('case-save-view');await page.reload();assert(await page.getByRole('columnheader',{name:'涉案金额'}).isVisible());
  await click('clear-case-filter');await page.locator('[name=query]').fill('不存在的合成案件');await submit('case-filter');assert.equal(await page.locator('.case-table tbody tr').count(),0);await click('clear-case-filter');assert.equal(await page.locator('.case-table tbody tr').count(),2);
 });
 await test('CASE02','新增/批量导入校验、转义和清空案件深链',async()=>{

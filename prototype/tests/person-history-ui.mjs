@@ -97,11 +97,16 @@ try{
   await click('close');
 
   await tab('文档空间');
+  const uploadFolderToggle=page.locator('[data-action="super-folder-toggle"][data-id="UPLOAD"]');
+  if(await uploadFolderToggle.getAttribute('aria-expanded')==='false')await uploadFolderToggle.click();
+  const uploadFolder=page.locator('.ss-file-folder').filter({has:uploadFolderToggle}).first();
+  assert.equal(await uploadFolder.locator('.ss-file-folder-child').count(),0,'Uploaded files must be flat with no nested folders');
+  assert.equal(await uploadFolder.locator('.ss-artifact-row').count(),2,'All uploaded files are listed directly in the first-level folder');
   const rootFolder=page.locator('[data-action="super-folder-toggle"][data-id="TASK-PERSON-20260924-0017"]');
   if(await rootFolder.getAttribute('aria-expanded')==='false')await rootFolder.click();
-  const treeText=await page.locator('.ss-file-tree').innerText();
-  for(const folderName of ['01 人员统一档案','02 手机号与设备','03 生活轨迹','04 地址提取与归一','05 轨迹与活动分析','06 最终报告'])assert(treeText.includes(folderName),folderName);
-  assert((await page.locator('.ss-file-folder-child').count())>=7,'Task output tree contains the required nested folders');
+  const taskFolder=page.locator('.ss-file-folder').filter({has:rootFolder}).first();
+  assert.equal(await taskFolder.locator('.ss-file-folder-child').count(),0,'Person task files must be flat with no nested folders');
+  assert.equal(await taskFolder.locator('.ss-artifact-row').count(),13,'All person task outputs are listed directly in the query folder');
 
   await tab('导图空间');
   assert.equal((await snap()).entities.length,13);

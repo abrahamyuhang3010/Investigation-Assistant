@@ -48,12 +48,40 @@ export const sourceById=(d,id)=>d.sources.find(s=>s.id===id);
 export const documentEntities=(d,id)=>d.entities.filter(e=>e.refs.some(r=>r.sourceId===id));
 export function detailGraph(d,full=false) {
   const order=['victim','bank-0','bank-4','network','phone','person-0','person-1'];
-  const positions=[[40,192],[330,72],[330,252],[620,72],[620,252],[930,122],[930,312]];
+  const positions=[[40,240],[450,70],[450,300],[860,70],[860,300],[1270,150],[1270,380]];
   const extra=d.entities.filter(e=>!order.includes(e.id)&&(full||e.origin==='人工补充'));
-  extra.forEach((e,i)=>{order.push(e.id);positions.push([40+(i%4)*300,480+Math.floor(i/4)*156]);});
-  const nodes=order.map((id,i)=>{const e=d.entities.find(e=>e.id===id);if(!e)return null;return {...e,id:e.id,key:e.id,icon:e.category,category:detailCategories[e.category],summary:e.detail,provenance:`来源：${sourceById(d,e.refs[0]?.sourceId)?.name||'人工补充'}`,state:'Idle',x:positions[i][0],y:positions[i][1]};}).filter(Boolean);
+  extra.forEach((e,i)=>{order.push(e.id);positions.push([40+(i%4)*410,650+Math.floor(i/4)*230]);});
+  const nodes=order.map((id,i)=>{
+    const e=d.entities.find(e=>e.id===id);if(!e)return null;
+    const knownPerson=e.person&&e.person!=='待核验'?e.person:'';
+    const money=value=>`${Number(value||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}元`;
+    const bankIndex=e.id.startsWith('bank-')?Number(e.id.slice(5)):-1;
+    const tail=bankIndex>=0?d.account?.[bankIndex]:'';
+    const relatedTransactions=(d.forensics||[]).flatMap(doc=>(doc.transactions||[]).filter(tx=>!tail||String(tx.account||'').includes(tail)).map(tx=>({time:tx.time,direction:'金额',amount:money(tx.amount),attribution:tx.platform||''})));
+    let presentation;
+    if(e.category==='funds'&&e.role==='受害人账户'){
+      const transfers=(d.payments||[]).filter(value=>Number.isFinite(Number(value)));
+      presentation={cardType:'victim-bank',cardTitle:'受害人银行卡',primary:e.title,owner:knownPerson,
+        summaryMetrics:[{label:'转账次数：',value:`${transfers.length||1}次`},{label:'总计转出：',value:money(d.amount)}],
+        firstTransfer:transfers.length?{label:`首次 ${d.date}`,amount:transfers[0]}:null,
+        lastTransfer:transfers.length>1?{label:`最后 ${d.date}`,amount:transfers.at(-1)}:null,
+        tags:[e.role]};
+    }else if(e.category==='funds'){
+      const total=relatedTransactions.reduce((sum,row)=>sum+Number(String(row.amount).replace(/[^\d.-]/g,'')),0);
+      presentation={cardType:'fund-bank-l1',cardTitle:'一级 · 银行卡',primary:e.title,owner:knownPerson,showDetails:true,
+        summaryMetrics:relatedTransactions.length?[{label:'流水次数：',value:`${relatedTransactions.length}次`},{label:'合计金额：',value:money(total)}]:[],
+        transactions:relatedTransactions.slice(0,3),tags:[e.role,e.detail].filter(Boolean),footer:'查人员位置'};
+    }else if(e.category==='person'){
+      presentation={cardType:'person',cardTitle:'人员信息',primary:e.title,tags:[e.role].filter(Boolean)};
+    }else if(e.category==='comm'){
+      presentation={cardType:'comm-phone',cardTitle:'手机号',phone:e.title,owner:knownPerson,timestamp:d.date,tags:[e.role].filter(Boolean)};
+    }else{
+      presentation={cardType:'net-account',cardTitle:e.type||'网络账号',accountId:e.title};
+    }
+    return {...e,...presentation,id:e.id,key:e.id,icon:e.category,category:detailCategories[e.category],summary:e.detail,provenance:`来源：${sourceById(d,e.refs[0]?.sourceId)?.name||'人工补充'}`,state:'Idle',x:positions[i][0],y:positions[i][1]};
+  }).filter(Boolean);
   const links=[['victim','bank-0','材料记载'],['victim','bank-4','转账陈述'],['bank-0','network','账号关联'],['bank-4','phone','联络陈述'],['network','person-0','主体待核验'],['phone','person-0','关系待核验'],['phone','person-1','主体待核验']].filter(([a,b])=>nodes.some(n=>n.id===a)&&nodes.some(n=>n.id===b)).map(([from,to,label])=>({from,to,label,inferred:label.includes('待核验')}));
-  return {nodes,links,width:1360,height:extra.length?480+Math.ceil(extra.length/4)*156:470};
+  return {nodes,links,width:1640,height:extra.length?650+Math.ceil(extra.length/4)*230:620};
 }
 export const reportSections=['案件概况','材料与范围','关键实体与关系','资金关系','通讯与网络','研判结论','待核验事项'];
 export function reportParagraphs(c,d) {

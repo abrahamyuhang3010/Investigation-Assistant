@@ -65,3 +65,14 @@
 .case-table .case-operations .actions{flex-wrap:nowrap}
 @media(max-width:1260px){.case-filter-panel{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.case-filter-panel{grid-template-columns:minmax(0,1fr);gap:12px}.case-filter-item{grid-template-columns:72px minmax(0,1fr)}.case-column-menu{position:fixed;right:16px;top:180px;max-height:calc(100vh - 210px)}.case-table .case-favorite-cell,.case-table .case-index-cell,.case-table .case-name-cell,.case-table .case-operations{position:static}.case-table .case-name-cell{width:200px;min-width:200px;max-width:220px}}
+
+/* PG12/PG14 list-page visual alignment: Dify-style search with a single count footer. */
+.case-list-controls{min-height:34px}
+.case-input-search{display:flex;align-items:center;gap:6px;width:290px;max-width:100%;height:34px;padding:0 10px;border:1px solid transparent;border-radius:7px;background:var(--hover);color:var(--muted)}
+.case-input-search .icon{width:16px;height:16px;flex:0 0 16px}
+.case-search-form .case-input-search input{width:100%;height:auto;min-width:0;padding:4px 0;border:0;background:transparent;color:var(--text);font-size:12px;outline:0}
+.case-search-form .case-input-search input:focus{outline:0}
+.case-input-search:focus-within{border-color:var(--border);background:var(--surface);box-shadow:0 1px 2px color-mix(in srgb,var(--text) 5%,transparent)}
+.case-table-scroll{margin-top:16px}
+.case-list-footer{justify-content:flex-end;padding-bottom:0}
+@media(max-width:760px){.case-input-search{width:100%}.case-search-form .case-input-search input{width:100%}}

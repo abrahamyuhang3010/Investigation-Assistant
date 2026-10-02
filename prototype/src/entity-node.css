@@ -5,3 +5,66 @@
 .entity-title{font:700 13px/16px var(--font);border:0;padding:0;text-align:left;color:var(--text);background:none;min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-transform:none}.entity-title:hover{text-decoration:underline}.entity-content{padding:0 12px 12px;font-size:12px;line-height:16px}.entity-content>p{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--text)}.entity-provenance{display:flex;gap:8px;color:var(--muted);font-size:12px;margin-top:6px}.entity-provenance>span:first-child{flex-shrink:0}.entity-provenance>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.entity-handle{position:absolute;width:16px;height:16px;top:17px;display:grid;place-items:center}.entity-handle i{height:8px;width:2px;background:var(--node-handle)}.entity-handle.input{left:-8px}.entity-handle.output{right:-8px}.entity-node:hover{box-shadow:var(--node-shadow-lg);z-index:3}.entity-node:focus-visible{outline:2px solid var(--brand);outline-offset:3px}.entity-node.is-selected{background:var(--node-handle)!important;box-shadow:0 0 0 1px var(--node-handle),var(--node-shadow-lg);z-index:4}.entity-node[data-state=Running],.entity-node[data-state=Paused]{background:var(--node-handle)}.entity-node[data-state=Success]{background:#12b76a}.entity-node[data-state=Error]{background:var(--red)}.entity-node[data-state=Exception]{background:var(--amber)}.entity-node[data-state=Waiting]{opacity:.7}.entity-node.is-excluded{opacity:.45}.entity-node[data-state=Error] .entity-handle i{background:var(--red)}.entity-node[data-state=Exception] .entity-handle i{background:var(--amber)}.entity-status-icon{width:14px;height:14px;flex-shrink:0}.entity-node[data-state=Running] .entity-status-icon{animation:node-spin 1.2s linear infinite}
 .entity-actions{position:absolute;right:0;bottom:calc(100% + 4px);height:28px;display:flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface);box-shadow:var(--node-shadow-md);visibility:hidden;opacity:0;transition:opacity 120ms}.entity-actions::after{content:'';position:absolute;top:100%;height:8px;width:100%}.entity-node[data-state=Idle]:hover .entity-actions,.entity-node[data-state=Idle]:focus-within .entity-actions,.entity-node.is-selected .entity-actions{visibility:visible;opacity:1}.entity-actions .node-action{border:0;background:transparent;height:28px;min-height:28px;font-size:12px;padding:0 10px}.entity-actions .node-action img{width:14px;height:14px}.node-more img{width:16px;height:16px}[data-theme=dark] .entity-actions img{filter:brightness(2)}.node-more{display:grid;place-items:center;height:28px;width:32px;border:0;border-left:1px solid var(--border);background:none;color:var(--muted)}.entity-menu{position:absolute;right:0;top:4px;background:var(--surface);border:1px solid var(--border);box-shadow:var(--node-shadow-lg);padding:4px;border-radius:8px;width:176px;z-index:5}.entity-menu .btn{width:100%;justify-content:flex-start;font-size:12px}.is-readonly .entity-node{cursor:default}.is-readonly .entity-title:hover{text-decoration:none}.is-readonly .entity-viewport{min-height:0;max-height:250px;pointer-events:none}.business-tag{display:inline-block;padding:2px 5px;border-radius:4px;font-size:11px;white-space:nowrap}
 @keyframes edge-flow{to{stroke-dashoffset:-16}}@keyframes node-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.entity-node,.entity-actions{transition:none}.entity-edges path.running,.entity-node[data-state=Running] .entity-status-icon{animation:none}}@media(hover:none){.entity-node:focus-within .entity-actions{visibility:visible;opacity:1}}
+
+/* Latest entity-clue card shell, scoped to the two investigation graphs only. */
+.entity-graph.is-investigation{--clue-canvas:#f2f4f7;--clue-bg:#fcfcfd;--clue-border:#eaecf0;--clue-text:#101828;--clue-secondary:#344054;--clue-tertiary:#667085;--clue-accent:#155eef;--clue-danger:#d92d20;--clue-badge-bg:#f2f4f7;--clue-badge-text:#475467;--clue-focus:#085afc;background:var(--clue-canvas)}
+[data-theme=dark] .entity-graph.is-investigation{--clue-canvas:#1d1d20;--clue-bg:#27272b;--clue-border:#3c3c43;--clue-text:#f5f5f6;--clue-secondary:#d9d9de;--clue-tertiary:rgba(200,206,218,.6);--clue-accent:#6694ff;--clue-danger:#f97066;--clue-badge-bg:#35353a;--clue-badge-text:#d9d9de;--clue-focus:#6694ff}
+.entity-graph.is-investigation .entity-node{box-sizing:border-box;width:322px;padding:1px;border:0;border-radius:16px;background:var(--clue-border);color:var(--clue-text);box-shadow:0 1px 2px #1018280d;transition:box-shadow 120ms,background 120ms}
+.entity-graph.is-investigation .entity-shell{min-height:0;background:var(--clue-bg);border-radius:15px}
+.entity-graph.is-investigation .entity-header{box-sizing:border-box;height:44px;padding:12px 12px 8px;gap:8px}
+.entity-graph.is-investigation .entity-icon{height:24px;width:24px;flex-basis:24px;border-radius:8px}
+.entity-graph.is-investigation .entity-icon img{width:16px;height:16px}
+.entity-graph.is-investigation .entity-icon.funds{background:#f79009}
+.entity-graph.is-investigation .entity-icon.comm{background:#12b76a}
+.entity-graph.is-investigation .entity-icon.net{background:#7f56d9}
+.entity-graph.is-investigation .entity-icon.person{background:#2e90fa}
+.entity-graph.is-investigation .entity-icon.case{background:#667085}
+.entity-graph.is-investigation .entity-title{font:700 13px/16px "Noto Sans SC",var(--font);color:var(--clue-text)}
+.entity-graph.is-investigation .entity-title:hover{text-decoration:none;color:var(--clue-accent)}
+.entity-graph.is-investigation .entity-content{box-sizing:border-box;width:320px;padding:0 12px 8px;display:flex;flex-direction:column;gap:4px;color:var(--clue-secondary);font:400 10px/12px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .entity-content>p,.entity-graph.is-investigation .entity-provenance{display:none}
+.entity-graph.is-investigation .entity-handle{top:8px;width:16px;height:16px}
+.entity-graph.is-investigation .branch-toggle{border:0;padding:0;background:transparent;color:var(--clue-focus);font:700 10px/16px var(--font);cursor:pointer}
+.entity-graph.is-investigation .branch-toggle span{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transition:opacity .15s}
+.entity-graph.is-investigation .branch-toggle:hover,.entity-graph.is-investigation .branch-toggle:focus-visible,.entity-graph.is-investigation .branch-toggle.is-collapsed{border-radius:50%;background:var(--clue-focus);color:#fff}
+.entity-graph.is-investigation .branch-toggle:hover i,.entity-graph.is-investigation .branch-toggle:focus-visible i,.entity-graph.is-investigation .branch-toggle.is-collapsed i{opacity:0}
+.entity-graph.is-investigation .branch-toggle:hover span,.entity-graph.is-investigation .branch-toggle:focus-visible span,.entity-graph.is-investigation .branch-toggle.is-collapsed span{opacity:1}
+.entity-graph.is-investigation .entity-viewport{cursor:grab;touch-action:none}
+.entity-graph.is-investigation .entity-viewport.is-panning{cursor:grabbing;user-select:none}
+.entity-graph.is-investigation .entity-handle i{width:2px;height:8px;background:var(--clue-focus);border-radius:1px}
+.entity-graph.is-investigation .entity-node:hover{box-shadow:0 12px 16px -4px #10182814,0 4px 6px -2px #10182808;z-index:3}
+.entity-graph.is-investigation .entity-node:focus-visible{outline:2px solid var(--clue-focus);outline-offset:2px}
+.entity-graph.is-investigation .entity-node.is-selected{background:var(--clue-focus)!important;box-shadow:0 0 0 1px var(--clue-focus),0 8px 14px #1018281f;z-index:4}
+.entity-graph.is-investigation .clue-more{width:24px;height:24px;flex:0 0 24px;border:0;border-radius:6px;padding:4px;color:var(--clue-tertiary)}
+.entity-graph.is-investigation .clue-more:hover{background:var(--clue-badge-bg)}
+.entity-graph.is-investigation .clue-more img{width:16px;height:16px}
+.entity-graph.is-investigation .clue-manual{margin-left:auto;white-space:nowrap;color:var(--clue-tertiary);font:400 10px/12px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .entity-menu{top:40px;right:8px;background:var(--clue-bg);border-color:var(--clue-border)}
+.entity-graph.is-investigation .entity-edges text{stroke:var(--clue-canvas)}
+.entity-graph.is-investigation .clue-primary,.entity-graph.is-investigation .clue-owner,.entity-graph.is-investigation .clue-footer{color:var(--clue-accent);font:400 12px/16px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .clue-meta,.entity-graph.is-investigation .clue-time,.entity-graph.is-investigation .clue-place,.entity-graph.is-investigation .clue-details{color:var(--clue-tertiary);font:400 10px/12px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .clue-ellipsis{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entity-graph.is-investigation .clue-identity{display:grid;grid-template-columns:minmax(0,220px) 72px;gap:4px;align-items:start}
+.entity-graph.is-investigation .clue-owner{text-align:right}
+.entity-graph.is-investigation .clue-location{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px;align-items:center}
+.entity-graph.is-investigation .clue-fund-identity{display:grid;grid-template-columns:220px 72px;gap:4px;align-items:start}
+.entity-graph.is-investigation .clue-fund-identity>span{display:flex;min-width:0;flex-direction:column}
+.entity-graph.is-investigation .clue-fund-side{align-items:flex-end;text-align:right}
+.entity-graph.is-investigation .clue-details{color:var(--clue-accent)}
+.entity-graph.is-investigation .clue-metrics{display:grid;grid-template-columns:84px 104px 100px;gap:4px;min-width:0;overflow:hidden;color:var(--clue-danger);font:400 10px/12px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .clue-metrics.is-count-1{grid-template-columns:minmax(0,1fr)}
+.entity-graph.is-investigation .clue-metrics.is-count-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.entity-graph.is-investigation .clue-metrics.is-victim{grid-template-columns:112px minmax(0,180px)}
+.entity-graph.is-investigation .clue-metric{display:flex;min-width:0;gap:2px;white-space:nowrap;overflow:hidden}
+.entity-graph.is-investigation .clue-metric>span,.entity-graph.is-investigation .clue-metric>b{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.entity-graph.is-investigation .clue-metric:last-child{justify-content:flex-end;text-align:right}
+.entity-graph.is-investigation .clue-metric b{font:inherit}
+.entity-graph.is-investigation .clue-transactions{display:flex;flex-direction:column;gap:4px}
+.entity-graph.is-investigation .clue-transaction{display:grid;grid-template-columns:68px 100px 120px;gap:4px;color:var(--clue-secondary);font:400 10px/12px "Noto Sans SC",var(--font);font-variant-numeric:tabular-nums}
+.entity-graph.is-investigation .clue-transaction>span{white-space:nowrap}
+.entity-graph.is-investigation .clue-transaction>span:last-child{text-align:right}
+.entity-graph.is-investigation .clue-victim-row{display:grid;grid-template-columns:160px 132px;gap:4px;color:var(--clue-secondary);font:400 10px/12px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .clue-victim-row>span:last-child{text-align:right}
+.entity-graph.is-investigation .clue-tags{display:flex;gap:4px;min-width:0;flex-wrap:nowrap;overflow:hidden}
+.entity-graph.is-investigation .clue-tag{padding:2px 4px;border-radius:4px;background:var(--clue-badge-bg);color:var(--clue-badge-text);font:400 10px/12px "Noto Sans SC",var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entity-graph.is-investigation .clue-footer{height:20px;padding-top:4px;display:flex;align-items:flex-start;justify-content:space-between;color:var(--clue-accent)}

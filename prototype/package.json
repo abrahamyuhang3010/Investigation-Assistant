@@ -11,7 +11,10 @@
     "test:case-workflow": "node tests/case-workflow.mjs",
     "test:global-situation": "node tests/global-situation.mjs",
     "test:case-detail": "node tests/case-detail.mjs",
-    "validate:map-data": "node scripts/validate-nanyang-map-data.mjs"
+    "validate:map-data": "node scripts/validate-nanyang-map-data.mjs",
+    "test:event-workflow": "node tests/event-workflow.mjs",
+    "test:event-workflow:visuals": "node tests/event-workflow-visuals.mjs",
+    "test:event-workflow:isolation": "node tests/event-workflow-isolation.mjs"
   },
   "description": "PRD aligned dependency-free interactive frontend prototype"
 }

@@ -2,7 +2,46 @@ import {eventTemplate} from './event-workflow-template.js';
 import {caseWorkbenchHeading} from './case-workbench.js';
 import {investigationCardBody, investigationCardModel, investigationIconFor} from './entity-node.js';
 
-let eventHost, controller;
+let eventHost, controller, eventStyleSheetPromise;
+
+function createEventStyleSheet() {
+  if (!('adoptedStyleSheets' in Document.prototype) || !('replace' in CSSStyleSheet.prototype)) return null;
+  eventStyleSheetPromise ||= Promise.all([
+    fetch('/src/event-workflow-tokens.css').then(response => {
+      if (!response.ok) throw new Error('Failed to load event workflow tokens');
+      return response.text();
+    }),
+    fetch('/src/event-workflow.css').then(response => {
+      if (!response.ok) throw new Error('Failed to load event workflow styles');
+      return response.text();
+    })
+  ]).then(async ([tokens, styles]) => {
+    const sheet = new CSSStyleSheet();
+    await sheet.replace(tokens + '\n' + styles.replace(/^@import\s+url\([^)]*event-workflow-tokens\.css[^)]*\);?\s*/m, ''));
+    return sheet;
+  });
+  return eventStyleSheetPromise;
+}
+
+function installEventStyles(host, root) {
+  const sheetPromise = createEventStyleSheet();
+  if (!sheetPromise) {
+    root.insertAdjacentHTML('afterbegin', '<link rel="stylesheet" href="/src/event-workflow.css">');
+    return;
+  }
+  host.style.display = 'none';
+  sheetPromise.then(sheet => {
+    root.adoptedStyleSheets = [sheet];
+    host.style.removeProperty('display');
+  }).catch(() => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/src/event-workflow.css';
+    link.addEventListener('load', () => host.style.removeProperty('display'), {once:true});
+    link.addEventListener('error', () => host.style.removeProperty('display'), {once:true});
+    root.prepend(link);
+  });
+}
 export function renderEventWorkflow() {
   return '<div id="event-workflow-heading">' + caseWorkbenchHeading('event') + '</div><div id="event-workflow-slot"></div>';
 }
@@ -12,7 +51,8 @@ export function mountEventWorkflow() {
   if (!eventHost) {
     eventHost = document.createElement('event-workflow');
     const root = eventHost.attachShadow({mode:'open'});
-    root.innerHTML = '<link rel="stylesheet" href="/src/event-workflow.css">' + eventTemplate;
+    root.innerHTML = eventTemplate;
+    installEventStyles(eventHost, root);
     slot.append(eventHost);
     controller = initializeEventWorkflow(root);
   } else slot.append(eventHost);

@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {EMPTY_VALUE,displayValue,formatCompactDateTime,formatCount,formatDate,formatDateTime,formatMoney,formatNumber,isEmptyValue} from '../src/formatters.js';
+
+assert.equal(isEmptyValue(0), false);
+assert.equal(isEmptyValue(''), true);
+assert.equal(displayValue(0), '0');
+assert.equal(displayValue(null), EMPTY_VALUE);
+assert.equal(displayValue('unknown'), '未知');
+assert.equal(displayValue('000123456789'), '000123456789');
+assert.equal(formatMoney(0), '0.00元');
+assert.equal(formatMoney(-1234.5), '-1,234.50元');
+assert.equal(formatMoney('900719925474099312345.678'), '900,719,925,474,099,312,345.68元');
+assert.equal(formatMoney('00128,000.00', {unit:false, symbol:true}), '¥128,000.00');
+assert.equal(formatMoney(null), EMPTY_VALUE);
+assert.equal(formatMoney('待核验'), '待核验');
+assert.equal(formatNumber('12.3400', {minimumFractionDigits:0, maximumFractionDigits:2}), '12.34');
+assert.equal(formatCount(0), '0次');
+assert.equal(formatDate('2026.9.2 01:03'), '2026-09-02');
+assert.equal(formatDateTime('2025.11.12 13:28'), '2025-11-12 13:28');
+assert.equal(formatDateTime('2026-09-12T15:05:59'), '2026-09-12 15:05');
+assert.equal(formatCompactDateTime('2026-09-12 15:05'), '09-12 15:05');
+assert.equal(formatDate('not-a-date'), 'not-a-date');
+console.log('formatters: ok');

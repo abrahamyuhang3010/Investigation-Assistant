@@ -14,7 +14,17 @@
     "validate:map-data": "node scripts/validate-nanyang-map-data.mjs",
     "test:event-workflow": "node tests/event-workflow.mjs",
     "test:event-workflow:visuals": "node tests/event-workflow-visuals.mjs",
-    "test:event-workflow:isolation": "node tests/event-workflow-isolation.mjs"
+    "test:event-workflow:isolation": "node tests/event-workflow-isolation.mjs",
+    "test:view-state": "node tests/view-state.mjs",
+    "capture:view-state": "node tests/view-state-evidence.mjs",
+    "test:formatters": "node tests/formatters.mjs",
+    "test:foundation-ui": "node tests/foundation-ui.mjs",
+    "capture:foundation": "node tests/foundation-evidence.mjs",
+    "test:graph-foundation": "node tests/graph-foundation.mjs",
+    "capture:graph-foundation": "node tests/graph-evidence.mjs",
+    "test:prompt-05": "node tests/prompt-05.mjs",
+    "test:prompt-06": "node tests/prompt-06.mjs",
+    "test:prompt-07": "node tests/prompt-07.mjs"
   },
   "description": "PRD aligned dependency-free interactive frontend prototype"
 }

@@ -1,3 +1,4 @@
+import {formatMoney} from './formatters.js';
 /** Case-owned synthetic fixtures. IDs, documents, entities and reports share one model. */
 export const detailCategories = {funds:'资金流',person:'人员流',net:'网络流',comm:'通讯流'};
 const fixtures = {
@@ -5,20 +6,23 @@ const fixtures = {
   'CASE-0802': {victim:'陈晓禾',witness:'周明远',people:['林青','赵文'],amount:46000,date:'2026-08-02',type:'关联账户核查',account:['2206','4182','6630','9007','5529','7613'],phone:'136****2436',network:'store_demo',platform:'示例交易平台',device:'DEMO-STORE',payments:[16000,30000]},
 };
 export function detailData(c,flow) {
-  if(flow.detail?.version===1)return flow.detail;
+  if(flow.detail?.version===1){
+    flow.detail.sources?.forEach(source=>{if(source.version==null)source.version=1;});
+    return flow.detail;
+  }
   const f=fixtures[c.id];
   const base={version:1,revision:1,category:'funds',forensicCategory:'funds',collapsed:false,viewerTab:'detail',resultTab:'entities',page:1,zoom:100,entityPage:1,query:'',docQuery:'',graphQuery:'',graphCategory:'all',layer:'all',reportSection:2,questionnaire:'',sources:[],entities:[],forensics:[],transcripts:[],reportId:null};
-  if(!f)return flow.detail={...base,summary:'尚未导入案情材料。请添加合成材料；本地演示不提供真实解析。',original:'',type:c.category||'其他线索',date:c.updated,amount:c.amount||0};
-  const d={...base,...structuredClone(f),amount:c.amount??f.amount};
-  const amount=d.amount.toLocaleString('zh-CN');
+  if(!f)return flow.detail={...base,summary:'尚未导入案情材料。请添加合成材料；本地演示不提供真实解析。',original:'',type:c.caseType||'其他类型',date:c.updated,amount:c.amount||0};
+  const d={...base,...structuredClone(f),type:c.caseType||f.type,amount:c.amount??f.amount};
+  const amount=formatMoney(d.amount,{unit:false});
   d.original=`【合成案例 · 非真实业务数据】\n${f.date}，${f.victim}反映其通过${f.platform}与账号 ${f.network} 联系，按对方要求从尾号${f.account[0]}、${f.account[1]}账户转款，申报损失共${amount}元。\n材料记载收款账户尾号${f.account[4]}，联络号码${f.phone}；另附尾号${f.account[2]}、${f.account[3]}、${f.account[5]}的转账记录。账户户主及资金性质尚待核验。\n${f.witness}在两次合成笔录中分别补充转账经过与后续联络信息；${f.people.join('、')}出现在现勘材料中，不能据此认定其真实身份或涉案性质。`;
   d.summary=`当前为${f.type}合成案例。材料记载申报损失${amount}元；案情、现勘与笔录中的相同示例标识保留并列来源，关联身份与资金性质均待人工核验。`;
-  d.sources.push({id:'original',name:'原始报案材料',kind:'case',demo:true,pages:[d.original]});
+  d.sources.push({id:'original',name:'原始报案材料',kind:'case',demo:true,version:1,pages:[d.original]});
   f.people.forEach((name,i)=>{
     const id=`forensic-${i+1}`;
     const doc={id,name,filename:`${name}_手机提取示例.txt`,identity:`DEMO-ID-0${i+1}`,device:`${f.device}-${i+1}`,role:'材料关联人员',date:f.date,demo:true,account:`DEMO-PAY-${f.account[i+4]}`,transactions:f.payments.map((v,j)=>({id:`TX-${i+1}-${j+1}`,platform:i?'示例银行':'示例支付',account:`DEMO-${f.account[i+4]}`,name:i?f.people[0]:f.victim,amount:i?v/2:v,time:`${f.date} ${15+i}:${String(5+j).padStart(2,'0')}`}))};
     d.forensics.push(doc);
-    d.sources.push({id,name:doc.filename,kind:'forensic',demo:true,pages:[`【合成现勘】材料主体：${name}；设备：${doc.device}；身份标识：${doc.identity}。示例资金账户${doc.account}，出现收款尾号${f.account[4]}、账号${f.network}、号码${f.phone}。设备与人员归属待核验。\n资金数据表：\n${doc.transactions.map(t=>`${t.id} · ${t.account} · ${t.amount}元 · ${t.time}`).join('\n')}`]});
+    d.sources.push({id,name:doc.filename,kind:'forensic',demo:true,version:1,pages:[`【合成现勘】材料主体：${name}；设备：${doc.device}；身份标识：${doc.identity}。示例资金账户${doc.account}，出现收款尾号${f.account[4]}、账号${f.network}、号码${f.phone}。设备与人员归属待核验。\n资金数据表：\n${doc.transactions.map(t=>`${t.id} · ${t.account} · ${t.amount}元 · ${t.time}`).join('\n')}`]});
   });
   for(let i=0;i<2;i++){
     const id=`transcript-${i+1}`,name=`${f.witness} 第${i+1}次`;
@@ -33,7 +37,7 @@ export function detailData(c,flow) {
     ];
     const pages=qa.map(([q,a],p)=>`电子笔录                         第${i+1}次\n\n询问笔录（合成示例）\n时间：${f.date} ${13+i}:20\n地点：演示询问室\n询问人：演示研判员    记录人：演示记录员\n被询问人：${f.witness}\n\n问：${q}\n答：${a}\n\n本页为第${p+1}页，所有标识与内容仅用于交互演示。`);
     d.transcripts.push({id,name,person:f.witness,sequence:i+1,date:f.date,role:i?'补充询问':'证人',demo:true,qa});
-    d.sources.push({id,name:`${name}笔录`,kind:'transcript',demo:true,pages});
+    d.sources.push({id,name:`${name}笔录`,kind:'transcript',demo:true,version:1,pages});
   }
   const add=(id,category,type,title,role,person,detail,refs)=>d.entities.push({id,category,type,title,role,person,detail,origin:'材料记载',refs:refs.map(([sourceId,page=1])=>({sourceId,page}))});
   f.account.forEach((tail,i)=>add(`bank-${i}`, 'funds','银行卡',`尾号 ${tail}`,i<2?'受害人账户':'收款账户',i<2?f.victim:'待核验',i===4?`申报损失 ¥${amount} · 待核验`:'开户信息待核验', [['original'],...(i<3||i===4?[['transcript-1',i===4||i===2?2:1]]:[]),...(i===4?[['transcript-2',1],['forensic-1'],['forensic-2']]:[]),...(i===5?[['forensic-2']]:[])]));
@@ -46,6 +50,61 @@ export function detailData(c,flow) {
 }
 export const sourceById=(d,id)=>d.sources.find(s=>s.id===id);
 export const documentEntities=(d,id)=>d.entities.filter(e=>e.refs.some(r=>r.sourceId===id));
+const transactionTotal=rows=>rows.reduce((sum,row)=>sum+(Number.isFinite(Number(row.amount))?Number(row.amount):0),0);
+export function transactionScopeForEntity(d,e) {
+  const sourceIds=new Set((e.refs||[]).map(ref=>ref.sourceId));
+  const identifier=e.category==='funds'?(String(e.title||'').match(/\d{4,}$/)||[])[0]||'':'';
+  const candidates=[];
+  for(const doc of d.forensics||[])for(const [index,tx] of (doc.transactions||[]).entries()){
+    const account=String(tx.account||''),accountDigits=account.replace(/\D/g,'');
+    const primary=!!identifier&&accountDigits.endsWith(identifier);
+    const related=sourceIds.has(doc.id);
+    if(!primary&&!related)continue;
+    candidates.push({...tx,sourceId:doc.id,source:sourceById(d,doc.id)?.name||doc.filename||doc.name||'未命名材料',sourceDemo:!!doc.demo,scopeKind:primary?'primary':'related',_order:index});
+  }
+  const keyed=new Map(),missing=[];
+  for(const row of candidates){
+    const id=String(row.id||'').trim();
+    if(!id){missing.push(row);continue;}
+    const previous=keyed.get(id);
+    if(!previous||previous.scopeKind==='related'&&row.scopeKind==='primary')keyed.set(id,row);
+  }
+  const rows=[...keyed.values(),...missing],primary=rows.filter(row=>row.scopeKind==='primary'),related=rows.filter(row=>row.scopeKind==='related');
+  const times=primary.map(row=>String(row.time||'').trim()).filter(Boolean).sort();
+  const sources=[...new Set(primary.map(row=>row.source))];
+  const sourceUpdatedAt=[...new Set(primary.map(row=>{
+    const doc=(d.forensics||[]).find(item=>item.id===row.sourceId);
+    return String(doc?.updatedAt||'').trim();
+  }).filter(Boolean))];
+  const directionValues=[...new Set(primary.map(row=>String(row.direction||'').trim()).filter(Boolean))];
+  const missingDirection=primary.filter(row=>!String(row.direction||'').trim()).length;
+  const limitations=[];
+  if(missing.length)limitations.push(`${missing.length} 条记录缺少订单号，已保留但无法可靠去重`);
+  if(missingDirection)limitations.push(`${missingDirection} 条当前实体记录缺少交易方向，不能据此宣称为出账或入账`);
+  if(!identifier&&e.category==='funds')limitations.push('当前资金实体缺少可匹配的稳定账号标识，无法形成当前实体统计');
+  if(primary.some(row=>row.sourceDemo))limitations.push('当前结果来自本地合成 fixture，未接入真实交易接口');
+  return {
+    primary,
+    related,
+    summary:{count:primary.length,amount:transactionTotal(primary)},
+    relatedSummary:{count:related.length,amount:transactionTotal(related)},
+    scope:{
+      entity:identifier?`银行卡尾号 ${identifier}`:String(e.title||'待核验'),
+      identifier,
+      direction:directionValues.length?directionValues.join('、'):'未提供（不可判定出/入账）',
+      timeRange:times.length?`${times[0]} 至 ${times.at(-1)}`:'未提供',
+      sources:sources.length?sources:['无直接匹配来源'],
+      dedupeKey:'订单号（tx.id）',
+      missingDedupeKey:missing.length,
+      duplicateCount:candidates.length-rows.length,
+      latestTransactionAt:times.at(-1)||'未提供',
+      updatedAt:sourceUpdatedAt.length?sourceUpdatedAt.join('；'):'未提供（当前 fixture 无材料更新时间字段）',
+      rule:identifier?`交易账号末位与 ${identifier} 匹配`:'未形成当前实体账号匹配规则',
+      relatedRule:'实体引用材料中账号不匹配的记录单独列示，不计入当前实体统计',
+      limitations,
+    },
+  };
+}
 export function detailGraph(d,full=false) {
   const order=['victim','bank-0','bank-4','network','phone','person-0','person-1'];
   const positions=[[40,240],[450,70],[450,300],[860,70],[860,300],[1270,150],[1270,380]];
@@ -54,10 +113,9 @@ export function detailGraph(d,full=false) {
   const nodes=order.map((id,i)=>{
     const e=d.entities.find(e=>e.id===id);if(!e)return null;
     const knownPerson=e.person&&e.person!=='待核验'?e.person:'';
-    const money=value=>`${Number(value||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}元`;
-    const bankIndex=e.id.startsWith('bank-')?Number(e.id.slice(5)):-1;
-    const tail=bankIndex>=0?d.account?.[bankIndex]:'';
-    const relatedTransactions=(d.forensics||[]).flatMap(doc=>(doc.transactions||[]).filter(tx=>!tail||String(tx.account||'').includes(tail)).map(tx=>({time:tx.time,direction:'金额',amount:money(tx.amount),attribution:tx.platform||''})));
+    const money=value=>formatMoney(value);
+    const transactionScope=transactionScopeForEntity(d,e);
+    const relatedTransactions=transactionScope.primary.map(tx=>({time:tx.time,direction:tx.direction||'方向待核验',amount:money(tx.amount),attribution:tx.platform||''}));
     let presentation;
     if(e.category==='funds'&&e.role==='受害人账户'){
       const transfers=(d.payments||[]).filter(value=>Number.isFinite(Number(value)));
@@ -67,9 +125,8 @@ export function detailGraph(d,full=false) {
         lastTransfer:transfers.length>1?{label:`最后 ${d.date}`,amount:transfers.at(-1)}:null,
         tags:[e.role]};
     }else if(e.category==='funds'){
-      const total=relatedTransactions.reduce((sum,row)=>sum+Number(String(row.amount).replace(/[^\d.-]/g,'')),0);
       presentation={cardType:'fund-bank-l1',cardTitle:'一级 · 银行卡',primary:e.title,owner:knownPerson,showDetails:true,
-        summaryMetrics:relatedTransactions.length?[{label:'流水次数：',value:`${relatedTransactions.length}次`},{label:'合计金额：',value:money(total)}]:[],
+        summaryMetrics:relatedTransactions.length?[{label:'流水次数：',value:`${transactionScope.summary.count}次`},{label:'合计金额：',value:money(transactionScope.summary.amount)}]:[],
         transactions:relatedTransactions.slice(0,3),tags:[e.role,e.detail].filter(Boolean),footer:'查人员位置'};
     }else if(e.category==='person'){
       presentation={cardType:'person',cardTitle:'人员信息',primary:e.title,tags:[e.role].filter(Boolean)};

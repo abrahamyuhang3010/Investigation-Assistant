@@ -25,6 +25,25 @@ await test('Five approved stages, local assets, alignment, contained desktop scr
   const misaligned=await p.locator('.cd-stage-nav button,.cd-btn').evaluateAll(xs=>xs.filter(x=>{const img=x.querySelector('img'),span=x.querySelector('span');if(!img||!span||!span.textContent.trim())return false;const a=img.getBoundingClientRect(),b=span.getBoundingClientRect();return Math.abs(a.y+a.height/2-b.y-b.height/2)>1;}).map(x=>x.textContent));assert.deepEqual(misaligned,[]);
  }
 });
+await test('Case status, analysis status, case type and clue category stay independent',async()=>{
+ const text=await p.locator('.cd-original').innerText();
+ for(const expected of ['案件状态','已立案','研判状态','待研判','案件类型','投资平台诈骗','线索类别','涉网线索'])assert.match(text,new RegExp(expected));
+ const c=(await snap()).cases.find(item=>item.id==='CASE-0817');
+ assert.deepEqual({analysisStatus:c.analysisStatus,caseStatus:c.caseStatus,caseType:c.caseType,clueCategory:c.clueCategory},{analysisStatus:'待研判',caseStatus:'已立案',caseType:'投资平台诈骗',clueCategory:'涉网线索'});
+});
+await test('Fund card and detail share one explicit transaction scope',async()=>{
+ await stage(3);
+ const card=p.locator('[data-node-id="bank-4"]');
+ const cardText=await card.innerText();assert.match(cardText,/2次/);assert.match(cardText,/30,000\.00元/);
+ await click('cd-entity','[data-id="bank-4"]');
+ const dialog=p.locator('.case-entity-detail-modal');const text=await dialog.innerText();
+ assert.match(text,/当前实体交易明细/);assert.match(text,/共 2 条 · 合计 30,000\.00元/);
+ assert.match(text,/关联材料中的其他账户记录/);assert.match(text,/共 2 条 · 合计 15,000\.00元 · 不计入当前实体统计/);
+ assert.match(text,/DEMO-8846/);assert.match(text,/未提供（不可判定出\/入账）/);assert.match(text,/订单号（tx\.id）/);
+ assert.match(text,/本地合成 fixture，未接入真实交易接口/);assert.match(text,/当前 fixture 无材料更新时间字段/);
+ assert.equal(await dialog.locator('.cd-entity-transaction-table').nth(0).locator('tbody tr').count(),2);
+ assert.equal(await dialog.locator('.cd-entity-transaction-table').nth(1).locator('tbody tr').count(),2);
+});
 await test('Forensic person switch updates account and transaction table',async()=>{
  await stage(1);assert.match(await p.locator('.cd-forensic-content').innerText(),/孙帝/);
  await click('cd-select-document','[data-id=forensic-2]');const text=await p.locator('.cd-forensic-content').innerText();assert.match(text,/孟昭鑫/);assert.match(text,/8846/);await screenshot('forensic-second');
@@ -55,9 +74,15 @@ await test('TXT import has no fabricated extraction; delete removes only its ref
 });
 await test('Graph focus/full/search/zoom/fullscreen and explicit simulated execution',async()=>{
  await stage(3);assert.equal(await p.locator('.entity-node').count(),7);await click('cd-graph-mode');assert.equal(await p.locator('.entity-node').count(),11);await click('cd-graph-mode');
- await click('node-zoom','[data-delta=".15"]');assert((await snap()).graphUI['case-detail-CASE-0817'].zoom);await click('node-fit');
+ const graph=p.locator('[data-graph="case-detail-CASE-0817"]');
+ assert.equal(await graph.getAttribute('data-scale'),'1');
+ assert.equal((await p.locator('[data-graph-zoom-label="case-detail-CASE-0817"]').innerText()).trim(),'100%');
+ assert.equal(await p.locator('.entity-node').first().evaluate(node=>getComputedStyle(node).width),'322px');
+ await click('node-zoom','[data-delta=".15"]');assert.equal((await snap()).graphUI['case-detail-CASE-0817'].zoom,1.15);assert.equal((await p.locator('[data-graph-zoom-label="case-detail-CASE-0817"]').innerText()).trim(),'115%');
+ await click('node-fit');const fitZoom=(await snap()).graphUI['case-detail-CASE-0817'].zoom;assert.equal(typeof fitZoom,'number');assert(fitZoom<1);assert.equal((await graph.getAttribute('data-scale')),String(fitZoom));
+ await click('node-reset');assert.equal((await snap()).graphUI['case-detail-CASE-0817'].zoom,1);assert.equal(await graph.getAttribute('data-scale'),'1');assert.equal((await p.locator('[data-graph-zoom-label="case-detail-CASE-0817"]').innerText()).trim(),'100%');
  await click('cd-graph-search');await p.locator('[name=query]').fill('7288');await submit();assert.equal(await p.locator('.entity-node').count(),1);await click('cd-graph-clear');
- await click('cd-fullscreen');assert.equal(await p.locator('.cd-fullscreen').count(),1);await p.keyboard.press('Escape');assert.equal(await p.locator('.cd-fullscreen').count(),0);
+ await click('cd-fullscreen');assert.equal(await p.locator('.cd-fullscreen').count(),1);assert.equal(await graph.getAttribute('data-scale'),'1');await p.keyboard.press('Escape');assert.equal(await p.locator('.cd-fullscreen').count(),0);assert.equal(await graph.getAttribute('data-scale'),'1');
  await click('cd-run');await click('case-pause');assert.equal((await snap()).caseFlows['CASE-0817'].run,'Paused');await click('case-resume');for(let i=0;i<3;i++)await click('case-advance');const f=(await snap()).caseFlows['CASE-0817'];assert.equal(f.run,'Success');assert(!JSON.stringify(f.events).includes('位置候选'));
 });
 await test('Report versioned frozen sources, stale detection and real .doc download',async()=>{
@@ -76,7 +101,7 @@ await test('Two cases are isolated across materials, entities and reports',async
  await open('CASE-0817');assert.deepEqual(await detail(),first);
 });
 await test('New cases start empty; custom material produces no invented report entities',async()=>{
- await p.goto(base+'/#/PG12');await click('case-import');await p.locator('[name=rows]').fill(JSON.stringify([{name:'空白合成验收案',number:'DEMO-EMPTY'}]));await submit();const id=(await snap()).cases.find(c=>c.number==='DEMO-EMPTY').id;await click('open-case',`[data-id="${id}"]`);assert.equal((await detail()).entities.length,0);await stage(4);assert.match(await p.locator('.cd-empty').innerText(),/尚无材料/);await stage(0);await click('cd-edit-original');await p.locator('[name=text]').fill('仅有一段合成原文');await submit();assert.equal((await detail()).entities.length,0);
+ await p.goto(base+'/#/PG12');await click('case-import');await p.locator('[name=rows]').fill(JSON.stringify([{name:'空白合成验收案',number:'DEMO-EMPTY'}]));await submit();await click('case-import-confirm');const id=(await snap()).cases.find(c=>c.number==='DEMO-EMPTY').id;await click('open-case',`[data-id="${id}"]`);assert.equal((await detail()).entities.length,0);await stage(4);assert.match(await p.locator('.cd-empty').innerText(),/尚无材料/);await stage(0);await click('cd-edit-original');await p.locator('[name=text]').fill('仅有一段合成原文');await submit();assert.equal((await detail()).entities.length,0);
 });
 await test('1024 / 390 layouts and dark theme retain content without document overflow',async()=>{
  for(const width of [1024,390]){await p.setViewportSize({width,height:900});for(let i=0;i<5;i++){await stage(i);const w=await p.evaluate(()=>document.documentElement.scrollWidth);assert(w<=width,`stage ${i}: ${w} > ${width}`);await screenshot(`responsive-${width}-${i}`);}}

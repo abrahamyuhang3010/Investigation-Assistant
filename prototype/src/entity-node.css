@@ -7,8 +7,8 @@
 @keyframes edge-flow{to{stroke-dashoffset:-16}}@keyframes node-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.entity-node,.entity-actions{transition:none}.entity-edges path.running,.entity-node[data-state=Running] .entity-status-icon{animation:none}}@media(hover:none){.entity-node:focus-within .entity-actions{visibility:visible;opacity:1}}
 
 /* Latest entity-clue card shell, scoped to the two investigation graphs only. */
-.entity-graph.is-investigation{--clue-canvas:#f2f4f7;--clue-bg:#fcfcfd;--clue-border:#eaecf0;--clue-text:#101828;--clue-secondary:#344054;--clue-tertiary:#667085;--clue-accent:#155eef;--clue-danger:#d92d20;--clue-badge-bg:#f2f4f7;--clue-badge-text:#475467;--clue-focus:#085afc;background:var(--clue-canvas)}
-[data-theme=dark] .entity-graph.is-investigation{--clue-canvas:#1d1d20;--clue-bg:#27272b;--clue-border:#3c3c43;--clue-text:#f5f5f6;--clue-secondary:#d9d9de;--clue-tertiary:rgba(200,206,218,.6);--clue-accent:#6694ff;--clue-danger:#f97066;--clue-badge-bg:#35353a;--clue-badge-text:#d9d9de;--clue-focus:#6694ff}
+.entity-graph.is-investigation{--clue-canvas:var(--investigation-canvas-bg,#f2f4f7);--clue-bg:#fcfcfd;--clue-border:#eaecf0;--clue-text:#101828;--clue-secondary:#344054;--clue-tertiary:#667085;--clue-accent:#155eef;--clue-danger:#d92d20;--clue-badge-bg:#f2f4f7;--clue-badge-text:#475467;--clue-focus:#085afc;background:var(--clue-canvas)}
+[data-theme=dark] .entity-graph.is-investigation{--clue-canvas:var(--investigation-canvas-bg,#1d1d20);--clue-bg:#27272b;--clue-border:#3c3c43;--clue-text:#f5f5f6;--clue-secondary:#d9d9de;--clue-tertiary:rgba(200,206,218,.6);--clue-accent:#6694ff;--clue-danger:#f97066;--clue-badge-bg:#35353a;--clue-badge-text:#d9d9de;--clue-focus:#6694ff}
 .entity-graph.is-investigation .entity-node{box-sizing:border-box;width:322px;padding:1px;border:0;border-radius:16px;background:var(--clue-border);color:var(--clue-text);box-shadow:0 1px 2px #1018280d;transition:box-shadow 120ms,background 120ms}
 .entity-graph.is-investigation .entity-shell{min-height:0;background:var(--clue-bg);border-radius:15px}
 .entity-graph.is-investigation .entity-header{box-sizing:border-box;height:44px;padding:12px 12px 8px;gap:8px}
@@ -21,7 +21,7 @@
 .entity-graph.is-investigation .entity-icon.case{background:#667085}
 .entity-graph.is-investigation .entity-title{font:700 13px/16px "Noto Sans SC",var(--font);color:var(--clue-text)}
 .entity-graph.is-investigation .entity-title:hover{text-decoration:none;color:var(--clue-accent)}
-.entity-graph.is-investigation .entity-content{box-sizing:border-box;width:320px;padding:0 12px 8px;display:flex;flex-direction:column;gap:4px;color:var(--clue-secondary);font:400 10px/12px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .entity-content{box-sizing:border-box;width:320px;padding:0 12px 8px;display:flex;flex-direction:column;gap:4px;color:var(--clue-secondary);font:400 12px/16px "Noto Sans SC",var(--font)}
 .entity-graph.is-investigation .entity-content>p,.entity-graph.is-investigation .entity-provenance{display:none}
 .entity-graph.is-investigation .entity-handle{top:8px;width:16px;height:16px}
 .entity-graph.is-investigation .branch-toggle{border:0;padding:0;background:transparent;color:var(--clue-focus);font:700 10px/16px var(--font);cursor:pointer}
@@ -42,7 +42,7 @@
 .entity-graph.is-investigation .entity-menu{top:40px;right:8px;background:var(--clue-bg);border-color:var(--clue-border)}
 .entity-graph.is-investigation .entity-edges text{stroke:var(--clue-canvas)}
 .entity-graph.is-investigation .clue-primary,.entity-graph.is-investigation .clue-owner,.entity-graph.is-investigation .clue-footer{color:var(--clue-accent);font:400 12px/16px "Noto Sans SC",var(--font)}
-.entity-graph.is-investigation .clue-meta,.entity-graph.is-investigation .clue-time,.entity-graph.is-investigation .clue-place,.entity-graph.is-investigation .clue-details{color:var(--clue-tertiary);font:400 10px/12px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .clue-meta,.entity-graph.is-investigation .clue-time,.entity-graph.is-investigation .clue-place,.entity-graph.is-investigation .clue-details{color:var(--clue-tertiary);font:400 11px/15px "Noto Sans SC",var(--font)}
 .entity-graph.is-investigation .clue-ellipsis{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entity-graph.is-investigation .clue-identity{display:grid;grid-template-columns:minmax(0,220px) 72px;gap:4px;align-items:start}
 .entity-graph.is-investigation .clue-owner{text-align:right}
@@ -51,7 +51,7 @@
 .entity-graph.is-investigation .clue-fund-identity>span{display:flex;min-width:0;flex-direction:column}
 .entity-graph.is-investigation .clue-fund-side{align-items:flex-end;text-align:right}
 .entity-graph.is-investigation .clue-details{color:var(--clue-accent)}
-.entity-graph.is-investigation .clue-metrics{display:grid;grid-template-columns:84px 104px 100px;gap:4px;min-width:0;overflow:hidden;color:var(--clue-danger);font:400 10px/12px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .clue-metrics{display:grid;grid-template-columns:84px 104px 100px;gap:4px;min-width:0;overflow:hidden;color:var(--clue-danger);font:400 12px/16px "Noto Sans SC",var(--font)}
 .entity-graph.is-investigation .clue-metrics.is-count-1{grid-template-columns:minmax(0,1fr)}
 .entity-graph.is-investigation .clue-metrics.is-count-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .entity-graph.is-investigation .clue-metrics.is-victim{grid-template-columns:112px minmax(0,180px)}
@@ -60,11 +60,15 @@
 .entity-graph.is-investigation .clue-metric:last-child{justify-content:flex-end;text-align:right}
 .entity-graph.is-investigation .clue-metric b{font:inherit}
 .entity-graph.is-investigation .clue-transactions{display:flex;flex-direction:column;gap:4px}
-.entity-graph.is-investigation .clue-transaction{display:grid;grid-template-columns:68px 100px 120px;gap:4px;color:var(--clue-secondary);font:400 10px/12px "Noto Sans SC",var(--font);font-variant-numeric:tabular-nums}
+.entity-graph.is-investigation .clue-transaction{display:grid;grid-template-columns:68px 100px 120px;gap:4px;color:var(--clue-secondary);font:400 12px/16px "Noto Sans SC",var(--font);font-variant-numeric:tabular-nums}
 .entity-graph.is-investigation .clue-transaction>span{white-space:nowrap}
 .entity-graph.is-investigation .clue-transaction>span:last-child{text-align:right}
-.entity-graph.is-investigation .clue-victim-row{display:grid;grid-template-columns:160px 132px;gap:4px;color:var(--clue-secondary);font:400 10px/12px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .clue-victim-row{display:grid;grid-template-columns:160px 132px;gap:4px;color:var(--clue-secondary);font:400 12px/16px "Noto Sans SC",var(--font)}
 .entity-graph.is-investigation .clue-victim-row>span:last-child{text-align:right}
 .entity-graph.is-investigation .clue-tags{display:flex;gap:4px;min-width:0;flex-wrap:nowrap;overflow:hidden}
 .entity-graph.is-investigation .clue-tag{padding:2px 4px;border-radius:4px;background:var(--clue-badge-bg);color:var(--clue-badge-text);font:400 10px/12px "Noto Sans SC",var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .entity-graph.is-investigation .clue-footer{height:20px;padding-top:4px;display:flex;align-items:flex-start;justify-content:space-between;color:var(--clue-accent)}
+
+.entity-graph.is-investigation .clue-account-identities{display:flex;flex-direction:column;gap:2px;margin-top:4px;color:var(--clue-tertiary);font:400 11px/15px "Noto Sans SC",var(--font)}
+.entity-graph.is-investigation .clue-account-identities>span{display:grid;grid-template-columns:32px minmax(0,1fr);gap:6px;min-width:0}
+.entity-graph.is-investigation .clue-account-value{color:var(--clue-secondary)}

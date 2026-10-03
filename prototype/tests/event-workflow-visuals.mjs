@@ -13,7 +13,7 @@ async function fresh(){await p.goto(`${base}/?visual=${Date.now()}#/PG14`);f=p.l
 async function action(name,selector=''){await f.locator(`[data-action="${name}"]${selector}`).first().click();await p.waitForTimeout(80)}
 async function capture(source,state,note='业务状态截图；未自动判定像素或设计系统一致性'){await f.locator('#event-toast').waitFor({state:'hidden'});await p.waitForTimeout(150);const index=matrix.length+1,file=String(index).padStart(2,'0')+'-'+state+'.png';await p.screenshot({path:path.join(out,file)});matrix.push({index,source:'因事研判_'+source+'.png',state,screenshot:file,reviewStatus:'CAPTURED',note})}
 async function graph(){await fresh();await action('task-detail');await action('enter-graph')}
-async function entity(){await f.locator('.graph-node [data-action=open-entity][data-id=network]').click()}
+async function entity(){await f.locator('.graph-node [data-action=open-entity][data-id^=network-]').first().click()}
 async function permission(){await f.locator('[data-action=recommend-action][data-tool=ip]').click()}
 async function approve(){await permission();await action('simulate-approval')}
 await fresh();await capture('初始页面_01','任务列表');
@@ -41,8 +41,8 @@ await f.locator('[data-action=card-add][data-id=bank1]').hover();await capture('
 await f.locator('[data-action=card-add][data-id=bank1]').click();await capture('侦查导图_人工创建卡片_03-1','子卡片紧凑初始表单');
 await f.locator('#child-type').selectOption('网络账号');await capture('侦查导图_人工创建卡片_03','子卡片新实体展开');
 await f.locator('#child-type').selectOption('人');await f.locator('input[name=child-new][value=no]').check();await f.locator('#child-lookup').fill('唐');await capture('侦查导图_人工创建卡片_04','子卡片已有人员候选');
-await graph();await f.locator('[data-action=card-menu][data-id=network]').click();await capture('侦查导图_发起调证_01','网络实体发起调证入口');
-await action('card-retrieval','[data-id=network]');await f.locator('#retrieval-tools input[data-tool=ip]').check();await capture('侦查导图_发起调证_02','调证工具及审批人');
+await graph();await f.locator('[data-action=card-menu][data-id^=network-]').click();await capture('侦查导图_发起调证_01','网络实体发起调证入口');
+await action('card-retrieval','[data-id^=network-]');await f.locator('#retrieval-tools input[data-tool=ip]').check();await capture('侦查导图_发起调证_02','调证工具及审批人');
 await f.locator('#retrieval-approvers [data-action=request-permission]').first().click();await f.locator('#retrieval-reason-input').fill('合成账号设备核验，用于交互演示。');await capture('侦查导图_发起调证_03','调证权限申请事由');
-await action('submit-retrieval');await entity();await approve();await action('close-entity');await f.locator('[data-action=card-menu][data-id=network]').click();await action('card-retrieval','[data-id=network]');await capture('侦查导图_发起调证_04','演示授权后工具列表','真实后端审批未接入；此图是显式模拟审批后的状态。');
+await action('submit-retrieval');await entity();await approve();await action('close-entity');await f.locator('[data-action=card-menu][data-id^=network-]').click();await action('card-retrieval','[data-id^=network-]');await capture('侦查导图_发起调证_04','演示授权后工具列表','真实后端审批未接入；此图是显式模拟审批后的状态。');
 await fs.writeFile(path.join(out,'../state-matrix.json'),JSON.stringify({captured:matrix.length,errors,matrix},null,2));console.log(JSON.stringify({captured:matrix.length,errors,out},null,2));await b.close();if(errors.length)process.exitCode=1;

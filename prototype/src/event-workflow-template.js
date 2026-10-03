@@ -28,14 +28,16 @@ export const eventTemplate = `
         <button class="btn btn-primary" type="button" data-action="new-task"><svg class="icon"><use href="#i-plus"></use></svg>新增任务</button>
         <div class="toolbar-spacer"></div>
         <label class="input-search"><svg class="icon"><use href="#i-search"></use></svg><input id="task-search" type="search" placeholder="请输入任务名称等" aria-label="搜索任务名称"></label>
-        <button class="btn btn-secondary" type="button" id="filter-button" data-action="toggle-filter"><svg class="icon chevron"><use href="#i-chevron"></use></svg>筛选</button>
-        <button class="btn btn-secondary" type="button" data-action="reset-filter">重置</button>
-        <button class="btn btn-secondary" type="button" data-action="save-filter">保存</button>
+        <button class="btn btn-secondary" type="button" id="filter-button" data-action="toggle-filter" aria-expanded="false" aria-controls="filter-panel"><svg class="icon chevron"><use href="#i-chevron"></use></svg>筛选</button>
+        <button class="btn btn-secondary" type="button" data-action="reset-filter">重置视图</button>
+        <button class="btn btn-secondary" type="button" data-action="save-filter">保存筛选方案</button>
       </div>
-      <div id="filter-panel" class="filter-panel" hidden>
+      <div id="applied-filter-summary" class="applied-filter-summary" aria-live="polite" hidden></div>
+      <div id="filter-panel" class="filter-panel" aria-label="任务筛选条件" hidden>
         <label class="filter-control"><span>线索要素</span><select id="filter-entity"><option value="">全部线索要素</option><option value="网络账号">网络账号</option><option value="银行卡">银行卡</option><option value="人">人</option></select></label>
         <div class="filter-control filter-segment"><span>更新状态</span><div class="segmented"><button type="button" data-update="new">有更新</button><button type="button" class="selected" data-update="all">全部</button></div></div>
-        <label class="filter-control filter-date"><span>创建时间</span><div class="date-range"><input id="date-start" type="date" aria-label="开始日期"><span>→</span><input id="date-end" type="date" aria-label="结束日期"></div></label>
+        <label class="filter-control filter-date"><span>创建时间</span><div class="date-range"><input id="date-start" type="date" lang="zh-CN" aria-label="开始日期"><span>→</span><input id="date-end" type="date" lang="zh-CN" aria-label="结束日期"></div></label>
+        <div class="filter-panel-actions"><span>编辑筛选草稿后，选择“应用筛选”才会更新列表。</span><div><button class="btn btn-secondary" type="button" data-action="clear-advanced-filter">清除筛选</button><button class="btn btn-secondary" type="button" data-action="cancel-filter">取消</button><button class="btn btn-primary" type="button" data-action="apply-filter">应用筛选</button></div></div>
       </div>
       <div class="table-scroll">
         <table class="task-table">
@@ -56,11 +58,25 @@ export const eventTemplate = `
         <button class="btn btn-secondary" type="button" data-action="entity-list">全部实体</button>
         <button class="btn btn-secondary" type="button" data-action="graph-search"><svg class="icon"><use href="#i-search"></use></svg>搜索</button>
         <button class="btn btn-secondary" type="button" data-action="graph-filter">筛选</button>
-        <div class="map-layer-wrap">
-          <button class="btn btn-secondary" type="button" data-action="graph-layer" aria-expanded="false">图层</button>
-          <div id="graph-layer-menu" class="map-layer-menu" hidden>
+        <div class="map-menu-wrap">
+          <button class="btn btn-secondary" type="button" data-action="graph-layer" aria-expanded="false" aria-controls="graph-layer-menu">图层</button>
+          <div id="graph-layer-menu" class="map-toolbar-menu" hidden>
+            <button type="button" data-action="toggle-graph-layer" data-layer="recorded" aria-pressed="true">材料记载关系</button>
+            <button type="button" data-action="toggle-graph-layer" data-layer="inferred" aria-pressed="true">推断与人工关系</button>
+          </div>
+        </div>
+        <div class="map-menu-wrap">
+          <button class="btn btn-secondary" type="button" data-action="graph-view" aria-expanded="false" aria-controls="graph-view-menu">视图</button>
+          <div id="graph-view-menu" class="map-toolbar-menu" hidden>
             <button type="button" data-action="collapse-all"><svg class="icon"><use href="#i-collapse"></use></svg>收起全部分支</button>
             <button type="button" data-action="expand-all"><svg class="icon"><use href="#i-expand"></use></svg>展开全部分支</button>
+            <button type="button" data-action="reset-view">恢复 100%</button>
+            <button type="button" data-action="fit-view">适应画布</button>
+          </div>
+        </div>
+        <div class="map-menu-wrap">
+          <button class="btn btn-secondary" type="button" data-action="graph-actions" aria-expanded="false" aria-controls="graph-actions-menu">操作</button>
+          <div id="graph-actions-menu" class="map-toolbar-menu" hidden>
             <button type="button" data-action="refresh"><svg class="icon"><use href="#i-refresh"></use></svg>刷新导图</button>
             <button type="button" data-action="export"><svg class="icon"><use href="#i-download"></use></svg>导出导图</button>
           </div>
@@ -94,8 +110,9 @@ export const eventTemplate = `
         </div>
         <div class="graph-zoom-controls" aria-label="导图缩放控制">
           <button class="btn btn-secondary" type="button" data-action="zoom-out" aria-label="缩小导图">−</button>
-          <button class="btn btn-secondary" type="button" data-action="fit-view">适应画布</button>
+          <button class="btn btn-secondary zoom-percent" type="button" data-action="reset-view" aria-label="当前缩放 100%；点击恢复 100%">100%</button>
           <button class="btn btn-secondary" type="button" data-action="zoom-in" aria-label="放大导图">+</button>
+          <button class="btn btn-secondary" type="button" data-action="fit-view">适应画布</button>
         </div>
       </div>
     </section>
@@ -114,7 +131,7 @@ export const eventTemplate = `
     <form id="task-edit-form" class="drawer-content drawer-edit-form">
       <h3>基本信息</h3>
       <label>任务名称 <input name="name" required maxlength="80"></label>
-      <label>初始实体 <input name="entity" required></label>
+      <label>初始实体 <input name="entity" readonly aria-describedby="task-entity-help"><small id="task-entity-help">初始实体由稳定实体 ID 关联；如需变更请新建任务。</small></label>
       <label>创建人 <input name="creator" readonly></label>
       <label>所属单位 <input name="unit" readonly></label>
       <label>备注 <textarea name="note" maxlength="1500" rows="5"></textarea><small class="counter" id="edit-note-counter">0 / 1500</small></label>
@@ -122,7 +139,7 @@ export const eventTemplate = `
     </form>
   </aside>
 
-  <section id="entity-drawer" class="drawer entity-drawer" role="dialog" aria-modal="true" aria-label="实体详情" hidden>
+  <section id="entity-drawer" class="drawer entity-drawer" role="dialog" aria-modal="true" aria-labelledby="entity-title" hidden>
     <div class="entity-header"><h2 id="entity-title">微信账号：AbMen</h2><button type="button" class="icon-action" data-action="close-entity" aria-label="关闭实体详情"><svg class="icon"><use href="#i-close"></use></svg></button></div>
     <div class="entity-layout">
       <nav class="entity-tabs" aria-label="实体详情分区">
@@ -140,12 +157,11 @@ export const eventTemplate = `
             <div><dt>开户人姓名</dt><dd id="entity-owner">王五</dd></div>
             <div><dt>主体类别</dt><dd>自然人</dd></div>
           </dl>
-          <div class="section-subtitle">出账 <span>共 3 条明细　↓</span></div>
-          <div class="table-scroll"><table class="transaction-table"><thead><tr><th>时间</th><th>金额</th><th>姓名</th><th>银行卡号</th><th>网络账号</th><th>订单号</th><th>平台</th></tr></thead><tbody>
-            <tr><td>2025.11.12 13:28</td><td>50,000.00</td><td>陈六</td><td>6228270457000000</td><td>--</td><td>--</td><td>招商银行</td></tr>
-            <tr><td>2025.11.12 13:28</td><td>50,000.00</td><td>陈六</td><td>6228270457000000</td><td>--</td><td>--</td><td>招商银行</td></tr>
-            <tr><td>2025.11.12 13:28</td><td>50,000.00</td><td>陈六</td><td>6228270457000000</td><td>--</td><td>--</td><td>招商银行</td></tr>
-          </tbody></table></div>
+          <aside id="entity-scope" class="entity-scope" aria-label="实体数据范围"></aside>
+          <section id="entity-transaction-section" aria-labelledby="entity-transaction-title">
+            <div class="section-subtitle"><strong id="entity-transaction-title">当前实体交易明细</strong><span id="entity-transaction-summary">共 0 条</span></div>
+            <div class="table-scroll"><table class="transaction-table"><thead><tr><th>时间</th><th>方向</th><th>金额</th><th>对方姓名</th><th>对方账号</th><th>订单号</th><th>来源</th></tr></thead><tbody id="entity-transaction-rows"></tbody></table></div>
+          </section>
           <h3 class="suggestion-heading" id="suggestion-anchor">调证建议（5）</h3>
           <div id="recommendations" class="recommendations"></div>
         </div>
@@ -164,7 +180,7 @@ export const eventTemplate = `
     <div class="dialog-header"><h2 id="create-title">新建研判任务</h2><button class="icon-action" type="button" data-action="close-dialog" aria-label="关闭"><svg class="icon"><use href="#i-close"></use></svg></button></div>
     <div class="dialog-body">
       <div class="form-section"><h3><span class="section-number">①</span>填写任务信息</h3>
-        <div class="form-row"><label for="create-name">*任务名称</label><input id="create-name" type="text" maxlength="80" placeholder="请输入名称"></div>
+        <div class="form-row"><label for="create-name">任务名称<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">（必填）</span></label><input id="create-name" type="text" maxlength="80" placeholder="请输入任务名称" required aria-required="true" aria-describedby="create-name-error"><span class="field-error" id="create-name-error" role="alert"></span></div>
         <div id="create-meta" hidden>
           <div class="form-row"><label for="create-type">研判类型</label><select id="create-type"><option>侵犯财产案 / 盗窃案</option><option>线索核查</option><option>资金分析</option><option>人员分析</option></select></div>
           <div class="form-row"><label for="create-creator">创建人</label><input id="create-creator" value="王建国" readonly></div>
@@ -173,24 +189,24 @@ export const eventTemplate = `
       </div>
       <div class="form-section"><h3><span class="section-number">②</span>关联实体线索</h3>
         <div id="create-quick">
-          <div class="form-row"><label for="create-entity-type">*选择实体类型</label><select id="create-entity-type" data-sync-type="create"><option>网络账号</option><option>银行卡</option><option>人</option></select></div>
-          <div class="form-row"><label for="create-account">*账号</label><input id="create-account" type="text" placeholder="请输入账号"></div>
+          <div class="form-row"><label for="create-entity-type">选择实体类型<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">（必填）</span></label><select id="create-entity-type" data-sync-type="create" required aria-required="true"><option>网络账号</option><option>银行卡</option><option>人</option></select></div>
+          <div class="form-row"><label for="create-account" id="create-account-quick-label">网络账号<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">（必填）</span></label><input id="create-account" type="text" placeholder="请输入网络账号标识" required aria-required="true" aria-describedby="create-account-error"><span class="field-error" id="create-account-error" role="alert"></span></div>
         </div>
         <div id="create-entity-expanded" hidden>
           <div class="form-row"><span class="form-label">*是否为新实体</span><div class="choice-row"><label><input type="radio" name="create-new" value="yes" checked>是</label><label><input type="radio" name="create-new" value="no">否</label></div></div>
-          <div class="form-row"><label for="create-entity-type-full">*选择实体类型</label><select id="create-entity-type-full" data-sync-type="create"><option>网络账号</option><option>银行卡</option><option>人</option></select></div>
+          <div class="form-row"><label for="create-entity-type-full">选择实体类型<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">（必填）</span></label><select id="create-entity-type-full" data-sync-type="create" required aria-required="true"><option>网络账号</option><option>银行卡</option><option>人</option></select></div>
           <div id="create-new-fields">
             <div class="form-row"><span class="form-label">*选择实体角色</span><div class="choice-row"><label><input type="radio" name="create-role" value="受害" checked>受害</label><label><input type="radio" name="create-role" value="嫌疑">嫌疑</label><label><input type="radio" name="create-role" value="相关">相关</label></div></div>
-            <div class="form-row"><label for="create-account-full" id="create-account-label">*账号</label><input id="create-account-full" type="text" placeholder="请输入账号"></div>
+            <div class="form-row"><label for="create-account-full" id="create-account-label">网络账号<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">（必填）</span></label><input id="create-account-full" type="text" placeholder="请输入网络账号标识" required aria-required="true" aria-describedby="create-account-full-error"><span class="field-error" id="create-account-full-error" role="alert"></span></div>
             <div id="create-network-fields">
-              <div class="form-row"><label for="create-platform">*平台</label><input id="create-platform" placeholder="请输入平台名称"></div>
+              <div class="form-row"><label for="create-platform">平台<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">（必填）</span></label><input id="create-platform" placeholder="请输入平台名称" required aria-required="true" aria-describedby="create-platform-error"><span class="field-error" id="create-platform-error" role="alert"></span></div>
               <div class="form-row"><span class="form-label">*支付属性</span><div class="choice-row"><label><input type="radio" name="create-payment" checked>用于支付</label><label><input type="radio" name="create-payment">未用于支付</label></div></div>
               <div class="form-row"><span class="form-label">*商户类型</span><div class="choice-row"><label><input type="radio" name="create-merchant" checked>商户</label><label><input type="radio" name="create-merchant">非商户</label></div></div>
             </div>
             <div class="parameter-line"><button type="button" class="btn btn-primary" data-action="add-parameter" data-target="create-parameters"><svg class="icon"><use href="#i-plus"></use></svg>新增参数</button><div id="create-parameters"></div></div>
           </div>
           <div id="create-existing-fields" hidden>
-            <div class="form-row"><label for="create-lookup">*身份证号／账号</label><input id="create-lookup" type="search" placeholder="请输入账号或身份证号"></div>
+            <div class="form-row"><label for="create-lookup">网络账号</label><input id="create-lookup" type="search" placeholder="搜索已有实体" aria-describedby="create-lookup-error"><span class="field-error" id="create-lookup-error" role="alert"></span></div>
             <div class="lookup-results" id="create-results"></div>
           </div>
         </div>
@@ -205,18 +221,18 @@ export const eventTemplate = `
     <div class="dialog-body">
       <div class="form-section no-top-border"><h3>关联实体线索</h3>
         <div class="form-row"><span class="form-label">*是否为新实体</span><div class="choice-row"><label><input type="radio" name="child-new" value="yes" checked>是</label><label><input type="radio" name="child-new" value="no">否</label></div></div>
-        <div class="form-row"><label for="child-type">*选择实体类型</label><select id="child-type" data-sync-type="child"><option>网络账号</option><option>银行卡</option><option>人</option></select></div>
+        <div class="form-row"><label for="child-type">选择实体类型<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">（必填）</span></label><select id="child-type" data-sync-type="child" required aria-required="true"><option>网络账号</option><option>银行卡</option><option>人</option></select></div>
         <div id="child-new-fields">
           <div class="form-row"><span class="form-label">*选择实体角色</span><div class="choice-row"><label><input type="radio" name="child-role" checked>受害</label><label><input type="radio" name="child-role">嫌疑</label><label><input type="radio" name="child-role">相关</label></div></div>
-          <div class="form-row"><label for="child-account" id="child-account-label">*账号</label><input id="child-account" placeholder="请输入账号"></div>
+          <div class="form-row"><label for="child-account" id="child-account-label">网络账号<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">（必填）</span></label><input id="child-account" placeholder="请输入网络账号标识" required aria-required="true" aria-describedby="child-account-error"><span class="field-error" id="child-account-error" role="alert"></span></div>
           <div id="child-network-fields">
-            <div class="form-row"><label for="child-platform">*平台</label><input id="child-platform" placeholder="请输入平台名称"></div>
+            <div class="form-row"><label for="child-platform">平台<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">（必填）</span></label><input id="child-platform" placeholder="请输入平台名称" required aria-required="true" aria-describedby="child-platform-error"><span class="field-error" id="child-platform-error" role="alert"></span></div>
             <div class="form-row"><span class="form-label">*支付属性</span><div class="choice-row"><label><input type="radio" name="child-payment" checked>用于支付</label><label><input type="radio" name="child-payment">未用于支付</label></div></div>
             <div class="form-row"><span class="form-label">*商户类型</span><div class="choice-row"><label><input type="radio" name="child-merchant" checked>商户</label><label><input type="radio" name="child-merchant">非商户</label></div></div>
           </div>
           <div class="parameter-line"><button type="button" class="btn btn-primary" data-action="add-parameter" data-target="child-parameters"><svg class="icon"><use href="#i-plus"></use></svg>新增参数</button><div id="child-parameters"></div></div>
         </div>
-        <div id="child-existing-fields" hidden><div class="form-row"><label for="child-lookup">*身份证号／账号</label><input id="child-lookup" type="search" placeholder="请输入账号或身份证号"></div><div id="child-results" class="lookup-results"></div></div>
+        <div id="child-existing-fields" hidden><div class="form-row"><label for="child-lookup">网络账号</label><input id="child-lookup" type="search" placeholder="搜索已有实体" aria-describedby="child-lookup-error"><span class="field-error" id="child-lookup-error" role="alert"></span></div><div id="child-results" class="lookup-results"></div></div>
       </div>
     </div>
     <div class="dialog-footer"><button type="button" class="btn btn-secondary" data-action="close-dialog">取消</button><button type="button" class="btn btn-primary" data-action="save-child">发起调证</button></div>

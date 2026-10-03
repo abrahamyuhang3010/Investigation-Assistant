@@ -1,4 +1,5 @@
 import {esc, btn} from './ui.js';
+import {formatCompactDateTime,formatDateTime,formatMoney} from './formatters.js';
 
 export const categories = {
   funds: '资金流', comm: '通讯流', net: '网络流', person: '人员流', case: '案件',
@@ -56,15 +57,13 @@ function list(value) {
   return String(value).split(/[、,，]|\s{2,}|　+/).map(item=>item.trim()).filter(Boolean);
 }
 function compactTime(value) {
-  if (!present(value)) return '';
-  const text=String(value).trim();
-  const match=text.match(/(?:\d{4}-)?(\d{2}-\d{2})[ T](\d{2}:\d{2})/);
-  return match ? `${match[1]} ${match[2]}` : text;
+  return present(value) ? formatCompactDateTime(value,{empty:''}) : '';
+}
+function fullTime(value) {
+  return present(value) ? formatDateTime(value,{empty:''}) : '';
 }
 function moneyText(value) {
-  if (!present(value)) return '';
-  const text=String(value).trim().replace(/^¥\s*/, '');
-  return /元$/.test(text) ? text : `${text}元`;
+  return present(value) ? formatMoney(value,{empty:''}) : '';
 }
 function legacyLines(entity) {
   return cleanIdentifier(entity.identifier).split(/\n+/).map(item=>item.trim()).filter(Boolean);
@@ -87,7 +86,7 @@ function legacyTransactions(entity) {
     if (!date && !direction) return null;
     const amount=text.match(/[¥￥]\s*([\d,.]+(?:\.\d+)?)/)?.[1] || text.match(/(?:转入|转出)[：:]?\s*([\d,.]+(?:\.\d+)?(?:元)?)/)?.[1] || '';
     const remainder=text.replace(date?.[0]||'','').replace(/[·]/g,' ').replace(/[¥￥]\s*[\d,.]+(?:\.\d+)?/,'').trim();
-    return {time:compactTime(date?.[0]||''),direction,amount:amount?moneyText(amount):'',attribution:remainder && remainder!==direction ? remainder : ''};
+    return {time:fullTime(date?.[0]||''),direction,amount:amount?moneyText(amount):'',attribution:remainder && remainder!==direction ? remainder : ''};
   }).filter(Boolean);
 }
 
@@ -99,7 +98,9 @@ export function investigationTypeFor(entity) {
   if (caseTypeMap[key]) return caseTypeMap[key];
   if (entity.type==='person') return 'person';
   if (entity.type==='bank') return 'fund-bank-l1';
-  if (entity.type==='network') return entity.stat || entity.detail || entity.footer ? 'fund-account-l1' : 'net-account';
+  // Network accounts stay network accounts unless the data adapter provides an explicit payment/fund subtype.
+  // Statistics, transaction details and the current analysis scene do not change an entity's business type.
+  if (entity.type==='network') return 'net-account';
   const title=String(entity.title || entity.name || '');
   if (/手机号|号码/.test(title)) return categoryFor(entity)==='comm'?'comm-phone':'person-phone';
   if (/银行卡|收款账户|关联账户/.test(title)) return /受害/.test(title)?'victim-bank':'fund-bank-l1';
@@ -123,13 +124,16 @@ export function investigationCardModel(entity) {
   const isBank=type==='victim-bank'||type.startsWith('fund-bank');
   const primary=first(entity.primary,entity.identifierValue,entity.accountId,entity.cardNumber,entity.phone,lines[0],entity.summary);
   const secondary=first(entity.bank,entity.secondary,isBank?lines[1]:'');
-  const owner=first(entity.owner,entity.accountHolder,entity.holder,entity.name && entity.name!==entity.title ? entity.name : '');
+  const realName=first(entity.realName,entity.verifiedName,'');
+  const nickname=first(entity.nickname,entity.accountNickname,'');
+  const owner=first(entity.owner,entity.accountHolder,entity.holder,realName,isBank&&entity.name!==entity.title?entity.name:'');
   const tags=list(first(entity.tags,entity.features));
   const model={
     type,
     category:investigationCategories[type] || categoryFor(entity),
     title:first(entity.cardTitle,entity.title,entity.name,''),
     primary:cleanIdentifier(primary), secondary:cleanIdentifier(secondary), owner:cleanIdentifier(owner),
+    nickname:cleanIdentifier(nickname), realName:cleanIdentifier(realName),
     timestamp:first(entity.timestamp,entity.firstContactAt,entity.latestAt,''),
     location:first(entity.location,entity.address,''),
     tags,
@@ -164,7 +168,7 @@ function metricsHTML(metrics, victim=false) {
 }
 function transactionsHTML(rows) {
   if (!rows.length) return '';
-  return `<span class="clue-transactions">${rows.map(row=>`<span class="clue-transaction"><span title="${esc(row.time||'')}">${esc(compactTime(row.time||''))}</span><span title="${esc(`${row.direction||''}${row.amount||''}`)}">${esc(row.direction||'')}${row.direction&&row.amount?' ':''}${esc(row.amount||'')}</span><span title="${esc(row.attribution||row.relatedAmount||'')}">${esc(row.attribution||row.relatedAmount||'')}</span></span>`).join('')}</span>`;
+  return `<span class="clue-transactions">${rows.map(row=>`<span class="clue-transaction"><span title="${esc(fullTime(row.time||''))}">${esc(compactTime(row.time||''))}</span><span title="${esc(`${row.direction||''}${row.amount||''}`)}">${esc(row.direction||'')}${row.direction&&row.amount?' ':''}${esc(row.amount||'')}</span><span title="${esc(row.attribution||row.relatedAmount||'')}">${esc(row.attribution||row.relatedAmount||'')}</span></span>`).join('')}</span>`;
 }
 
 /** Shared inner content for both case and event investigation maps. */
@@ -172,10 +176,16 @@ export function investigationCardBody(entity) {
   const m=investigationCardModel(entity);
   if (m.type==='fallback') return `<span class="clue-primary clue-ellipsis">${esc(first(m.primary,entity.summary,''))}</span>`;
   if (m.type==='person') return `${text(m.primary,'clue-primary clue-ellipsis')}${tagsHTML(m.tags)}`;
-  if (m.type==='person-phone'||m.type==='comm-phone') return `<span class="clue-identity clue-phone"><span class="clue-primary clue-ellipsis" title="${esc(m.primary)}">${esc(m.primary)}</span>${text(m.owner,'clue-owner clue-ellipsis')}</span>${text(m.timestamp,'clue-time clue-ellipsis')}${tagsHTML(m.tags)}`;
-  if (m.type==='person-location'||m.type==='person-device-address'||m.type==='comm-location') return `<span class="clue-location">${text(m.timestamp,'clue-time')}${text(m.location,'clue-place clue-ellipsis')}</span>`;
+  if (m.type==='person-phone'||m.type==='comm-phone') return `<span class="clue-identity clue-phone"><span class="clue-primary clue-ellipsis" title="${esc(m.primary)}">${esc(m.primary)}</span>${text(m.owner,'clue-owner clue-ellipsis')}</span>${text(compactTime(m.timestamp),'clue-time clue-ellipsis',fullTime(m.timestamp))}${tagsHTML(m.tags)}`;
+  if (m.type==='person-location'||m.type==='person-device-address'||m.type==='comm-location') return `<span class="clue-location">${text(compactTime(m.timestamp),'clue-time',fullTime(m.timestamp))}${text(m.location,'clue-place clue-ellipsis')}</span>`;
   if (m.type==='comm-device'||m.type==='net-terminal') return `${text(m.primary,'clue-primary clue-ellipsis')}${tagsHTML(m.tags)}`;
-  if (m.type==='net-account'||m.type==='net-group'||m.type==='net-space'||m.type==='net-wifi'||m.type==='net-router') return text(m.type==='net-space'?first(m.url,m.primary):m.primary,'clue-primary clue-ellipsis');
+  if (m.type==='net-account') {
+    const identities=[];
+    if (m.nickname && m.nickname!==m.primary) identities.push(`<span><span>昵称</span>${text(m.nickname,'clue-account-value clue-ellipsis')}</span>`);
+    if (m.realName && m.realName!==m.primary && m.realName!==m.nickname) identities.push(`<span><span>实名</span>${text(m.realName,'clue-account-value clue-ellipsis')}</span>`);
+    return `${text(m.primary,'clue-primary clue-ellipsis')}${identities.length?`<span class="clue-account-identities">${identities.join('')}</span>`:''}`;
+  }
+  if (m.type==='net-group'||m.type==='net-space'||m.type==='net-wifi'||m.type==='net-router') return text(m.type==='net-space'?first(m.url,m.primary):m.primary,'clue-primary clue-ellipsis');
   if (m.type==='net-app') return `${text(first(m.appName,m.primary),'clue-primary clue-ellipsis')}${text(m.packageName,'clue-meta clue-ellipsis')}${text(m.md5,'clue-meta clue-ellipsis')}`;
   if (m.type==='net-apk') return `${text(first(m.packageName,m.primary),'clue-primary clue-ellipsis')}${text(m.md5,'clue-meta clue-ellipsis')}`;
   if (m.type==='net-sdk') return `${text(first(m.appName,m.primary),'clue-primary clue-ellipsis')}${text(m.url,'clue-meta clue-ellipsis')}${text(m.keyName,'clue-meta clue-ellipsis')}${text(m.company,'clue-meta clue-ellipsis')}`;
@@ -198,10 +208,11 @@ export function entityNode(entity, {selected=false, menu=false, readonly=false, 
   const title = esc(investigation ? model.title : (entity.title || entity.name));
   const iconCategory=investigation?model.category:category;
   const renderedIcon = investigation ? `<img src="${investigationIconFor(entity)}" alt="">` : iconRenderer ? iconRenderer(category,entity) : `<img src="/assets/figma/entity-node/${category}.svg" alt="">`;
-  const headerMore=investigation&&!readonly?`<button class="node-more clue-more" data-action="node-more" data-id="${id}" aria-label="${title}，更多操作" aria-expanded="${menu}"><img src="/assets/figma/entity-node/more.svg" alt=""></button>`:'';
+  const menuId=`entity-menu-${id}`;
+  const headerMore=investigation&&!readonly?`<button class="node-more clue-more" data-action="node-more" data-id="${id}" aria-label="${title}，更多操作" aria-haspopup="menu" aria-expanded="${menu}" ${menu?`aria-controls="${menuId}"`:''}><img src="/assets/figma/entity-node/more.svg" alt=""></button>`:'';
   const content=investigation?investigationCardBody(entity):`<p title="${esc(entity.summary || entity.role)}">${esc(entity.summary || entity.role || '身份待核验')}</p><div class="entity-provenance"><span>${categories[category]}</span><span title="${esc(entity.provenance || entity.source)}">${esc(entity.provenance || entity.source || '来源待补充')}</span></div>`;
-  const menuHTML=!readonly&&state==='Idle'&&menu?`<div class="entity-menu" aria-label="实体操作">${btn('查看实体与来源',detailAction,`data-id="${id}"`,'ghost')}${btn('查看执行记录','node-execution',`data-id="${id}"`,'ghost')}</div>`:'';
-  const legacyActions=!investigation&&!readonly&&state==='Idle'?`<div class="entity-actions" aria-label="${title}的操作">${btn('<img src="/assets/figma/entity-node/details.svg" alt="">查看详情',detailAction,`data-id="${id}"`,'node-action')}<button class="node-more" data-action="node-more" data-id="${id}" aria-label="${title}，更多操作" aria-expanded="${menu}"><img src="/assets/figma/entity-node/more.svg" alt=""></button></div>`:'';
+  const menuHTML=!readonly&&state==='Idle'&&menu?`<div id="${menuId}" class="entity-menu" role="menu" aria-label="${title}的实体操作">${btn('查看实体与来源',detailAction,`data-id="${id}" role="menuitem"`,'ghost')}${btn('查看执行记录','node-execution',`data-id="${id}" role="menuitem"`,'ghost')}</div>`:'';
+  const legacyActions=!investigation&&!readonly&&state==='Idle'?`<div class="entity-actions" aria-label="${title}的操作">${btn('<img src="/assets/figma/entity-node/details.svg" alt="">查看详情',detailAction,`data-id="${id}"`,'node-action')}<button class="node-more" data-action="node-more" data-id="${id}" aria-label="${title}，更多操作" aria-haspopup="menu" aria-expanded="${menu}" ${menu?`aria-controls="${menuId}"`:''}><img src="/assets/figma/entity-node/more.svg" alt=""></button></div>`:'';
   return `<article class="entity-node ${investigation?'entity-clue-card':''} ${selected?'is-selected':''} ${entity.excluded?'is-excluded':''}" data-node-id="${id}" data-card-type="${esc(model?.type||'')}" data-state="${state}" style="left:${entity.x}px;top:${entity.y}px" ${readonly?'':`tabindex="0" data-action="node-select" data-id="${id}"`} aria-label="${title}${statusNames[state]?'，'+statusNames[state]:''}">
     ${input?'<span class="entity-handle input" aria-hidden="true"><i></i></span>':''}
     <div class="entity-shell"><header class="entity-header"><span class="entity-icon ${iconCategory}">${renderedIcon}</span>
@@ -214,7 +225,7 @@ export function entityNode(entity, {selected=false, menu=false, readonly=false, 
   </article>`;
 }
 
-export function entityGraph(nodes, links, {id='workspace', width=1376, height=534, ui={}, readonly=false, detailAction='entity', iconRenderer=null, variant='default'}={}) {
+export function entityGraph(nodes, links, {id='workspace', width=1376, height=534, ui={}, readonly=false, detailAction='entity', iconRenderer=null, variant='default', defaultZoom='fit'}={}) {
   const investigation=variant==='investigation', nodeWidth=investigation?322:242, anchorY=investigation?20:25;
   const collapsed=new Set(Array.isArray(ui.collapsedBranches)?ui.collapsedBranches:Object.keys(ui.collapsedBranches||{}).filter(key=>ui.collapsedBranches[key]));
   const children=new Map();
@@ -226,7 +237,7 @@ export function entityGraph(nodes, links, {id='workspace', width=1376, height=53
   const visibleIds=new Set(visibleNodes.map(node=>node.id||node.key));
   const visibleLinks=links.filter(link=>visibleIds.has(link.from)&&visibleIds.has(link.to));
   const positions = Object.fromEntries(visibleNodes.map(n=>[n.id||n.key,n]));
-  return `<div class="entity-graph ${readonly?'is-readonly':''} ${investigation?'is-investigation':''}" data-graph="${id}" data-width="${width}" data-height="${height}" data-zoom="${ui.zoom||'fit'}"><div class="entity-viewport" tabindex="0" aria-label="${readonly?'报告导图预览':'实体关系画布；可滚轮缩放、拖动画布移动视野'}"><div class="entity-extent"><div class="entity-stage" style="width:${width}px;height:${height}px"><svg class="entity-edges" viewBox="0 0 ${width} ${height}" aria-hidden="true">${visibleLinks.map((e,i)=>{
+  return `<div class="entity-graph ${readonly?'is-readonly':''} ${investigation?'is-investigation':''}" data-graph="${id}" data-width="${width}" data-height="${height}" data-zoom="${ui.zoom ?? defaultZoom}"><div class="entity-viewport" tabindex="0" aria-label="${readonly?'报告导图预览':'实体关系画布；可滚轮缩放、拖动画布移动视野'}"><div class="entity-extent"><div class="entity-stage" style="width:${width}px;height:${height}px"><svg class="entity-edges" viewBox="0 0 ${width} ${height}" aria-hidden="true">${visibleLinks.map((e,i)=>{
     const a=positions[e.from],b=positions[e.to]; if(!a||!b)return '';
     const x=a.x+nodeWidth,y=a.y+anchorY,tx=b.x,ty=b.y+anchorY;
     const d=e.path || (tx>=x?`M ${x} ${y} C ${x+(tx-x)/2} ${y},${x+(tx-x)/2} ${ty},${tx} ${ty}`:`M ${x} ${y} H ${x+18} V ${Math.max(a.y,b.y)+(investigation?230:145)} H ${tx-18} V ${ty} H ${tx}`);
@@ -235,13 +246,26 @@ export function entityGraph(nodes, links, {id='workspace', width=1376, height=53
 }
 
 /** Native scrolling and a fitted transform keep nodes readable without changing their design dimensions. */
+export function graphZoomPercent(scale) { return `${Math.round(Number(scale || 1) * 100)}%`; }
+
+function updateEntityGraphZoomLabel(graph,scale) {
+  const label=graphZoomPercent(scale),scope=graph.closest('.cd-graph-canvas')||graph.parentElement;
+  scope?.querySelectorAll('[data-graph-zoom-label]').forEach(control=>{
+    if(control.dataset.graphZoomLabel!==graph.dataset.graph)return;
+    control.textContent=label;
+    control.setAttribute('aria-label',`当前缩放 ${label}；点击恢复 100%`);
+    control.title=`当前缩放 ${label}；点击恢复 100%`;
+  });
+}
+
 export function applyEntityGraphScale(graph, requestedScale) {
   const viewport=graph?.querySelector('.entity-viewport'), stage=graph?.querySelector('.entity-stage'), extent=graph?.querySelector('.entity-extent');
   if(!viewport||!stage||!extent)return 1;
   const width=Number(graph.dataset.width),height=Number(graph.dataset.height);
   const fit=Math.min(1,viewport.clientWidth/width,graph.closest('.cd-detail')?viewport.clientHeight/height:1);
-  const scale=requestedScale==='fit'||requestedScale===undefined?Math.max(graph.classList.contains('is-readonly')?.12:.55,fit):Math.max(.35,Math.min(1.5,Number(requestedScale)));
-  stage.style.transform=`scale(${scale})`;extent.style.width=`${width*scale}px`;extent.style.height=`${height*scale}px`;graph.dataset.scale=scale;
+  const scale=requestedScale==='fit'||requestedScale===undefined?Math.max(graph.classList.contains('is-readonly')?.12:.55,fit):Math.max(.35,Math.min(1.5,Number(requestedScale)||1));
+  stage.style.transform=`scale(${scale})`;extent.style.width=`${width*scale}px`;extent.style.height=`${height*scale}px`;graph.dataset.scale=String(scale);
+  updateEntityGraphZoomLabel(graph,scale);
   return scale;
 }
 

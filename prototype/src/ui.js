@@ -6,9 +6,19 @@ export function btn(label,action,extra='',kind='secondary',ico=''){return `<butt
 export const link=(label,id,cls='')=>`<a href="#/${id}" class="${cls}">${label}</a>`;
 export const tag=(text,type='neutral')=>`<span class="tag ${type}">${esc(text)}</span>`;
 export const badge=(status)=>tag(status, /完成|已发布|通过|Ready|DONE|就绪|已复核|有效/.test(status)?'success':/失败|拒绝|异常|FAILED|Error|撤回|冲突/.test(status)?'danger':/运行|执行|RUNNING|Planning/.test(status)?'blue':/待|暂停|PAUSED|部分|Permission|Processing/.test(status)?'warning':'neutral');
-export const field=(label,name,value='',type='text',opts='')=>`<label class="field"><span>${label}</span><input name="${name}" type="${type}" value="${esc(value)}" ${opts}></label>`;
-export function select(label,name,values,value,opts=''){return `<label class="field"><span>${label}</span><select name="${name}" ${opts}>${values.map(v=>`<option ${String(value)===String(v)?'selected':''}>${esc(v)}</option>`).join('')}</select></label>`}
-export const area=(label,name,value='',opts='')=>`<label class="field"><span>${label}</span><textarea name="${name}" ${opts}>${esc(value)}</textarea></label>`;
+const controlId=name=>`field-${String(name).replace(/[^a-zA-Z0-9_-]+/g,'-')}`;
+const requiredFrom=opts=>/(?:^|\s)required(?:\s|$|=)/.test(opts);
+const describedOptions=(opts,errorId)=>{
+  const match=opts.match(/aria-describedby=(?:"([^"]*)"|'([^']*)')/);
+  if(!match)return `${opts} aria-describedby="${errorId}"`;
+  const value=[match[1]||match[2],errorId].filter(Boolean).join(' ');
+  return opts.replace(match[0],`aria-describedby="${value}"`);
+};
+const fieldLabel=(label,id,required)=>`<label class="field-label" for="${id}">${esc(String(label).replace(/^\*\s*/,''))}${required?'<span class="field-required" aria-hidden="true">*</span><span class="sr-only">（必填）</span>':''}</label>`;
+const fieldError=(id)=>`<span class="field-error" id="${id}-error" role="alert"></span>`;
+export const field=(label,name,value='',type='text',opts='')=>{const id=controlId(name),required=requiredFrom(opts),errorId=`${id}-error`,localized=type==='date'&&!/(?:^|\s)lang=/.test(opts)?`${opts} lang="zh-CN"`:opts,attrs=describedOptions(localized,errorId);return `<div class="field">${fieldLabel(label,id,required)}<input id="${id}" name="${esc(name)}" type="${esc(type)}" value="${esc(value)}" ${required?'aria-required="true" ':''}${attrs}>${fieldError(id)}</div>`};
+export function select(label,name,values,value,opts=''){const id=controlId(name),required=requiredFrom(opts),errorId=`${id}-error`,attrs=describedOptions(opts,errorId);return `<div class="field">${fieldLabel(label,id,required)}<select id="${id}" name="${esc(name)}" ${required?'aria-required="true" ':''}${attrs}>${values.map(v=>`<option ${String(value)===String(v)?'selected':''}>${esc(v)}</option>`).join('')}</select>${fieldError(id)}</div>`}
+export const area=(label,name,value='',opts='')=>{const id=controlId(name),required=requiredFrom(opts),errorId=`${id}-error`,attrs=describedOptions(opts,errorId);return `<div class="field">${fieldLabel(label,id,required)}<textarea id="${id}" name="${esc(name)}" ${required?'aria-required="true" ':''}${attrs}>${esc(value)}</textarea>${fieldError(id)}</div>`};
 export const check=(label,name,value=false,opts='')=>`<label class="checkbox"><input type="checkbox" name="${name}" ${value?'checked':''} ${opts}>${label}</label>`;
 export const empty=(title,detail,action='')=>`<div class="empty">${icon('folder')}<h3>${title}</h3><p>${detail}</p>${action}</div>`;
 export const note=(text,kind='info')=>`<div class="notice ${kind}">${icon(kind==='danger'?'shield':'info')}<div>${text}</div></div>`;

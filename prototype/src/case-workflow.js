@@ -4,6 +4,8 @@ import {esc, icon, btn, link, tag, field, select, area, note, table, empty} from
 import {entityGraph, categories} from './entity-node.js';
 import {caseEntities, caseLinks} from './case-entities.js';
 import {caseWorkbenchHeading} from './case-workbench.js';
+import {displayValue,formatDateTime,formatMoney} from './formatters.js';
+import {CASE_IMPORT_FIELDS,caseImportTemplateText,prepareCaseImport,caseRecordFromImport} from './case-import.js';
 
 export const caseSteps = ['案情解析','现勘解析','笔录解析','侦查导图','AI报告'];
 const demoTexts = [
@@ -19,7 +21,10 @@ export function caseFlow(c=selectedCase()) {
 }
 const CASE_COLUMN_DEFS = [
   {key:'name',label:'案件名称/编号',required:true},
-  {key:'status',label:'研判状态'},
+  {key:'analysisStatus',label:'研判状态'},
+  {key:'caseStatus',label:'案件状态'},
+  {key:'caseType',label:'案件类型'},
+  {key:'clueCategory',label:'线索类别'},
   {key:'notes',label:'笔录数'},
   {key:'forensic',label:'现勘数'},
   {key:'results',label:'研判结果'},
@@ -32,14 +37,23 @@ const CASE_COLUMN_DEFS = [
   {key:'victim',label:'受害人信息'},
   {key:'suspect',label:'嫌疑人信息'},
   {key:'description',label:'简要案情'},
-  {key:'category',label:'案件类型'},
-  {key:'caseStatus',label:'案件状态'},
   {key:'updated',label:'更新时间'},
   {key:'acceptingUnit',label:'受理单位'},
 ];
-const DEFAULT_CASE_COLUMNS = ['name','status','notes','forensic','results','owner','acceptedAt','filedAt','description','category','caseStatus','updated','acceptingUnit'];
+const DEFAULT_CASE_COLUMNS = ['name','analysisStatus','caseStatus','caseType','clueCategory','notes','forensic','results','owner','acceptedAt','filedAt','description','updated','acceptingUnit'];
 const REQUIRED_CASE_COLUMNS = CASE_COLUMN_DEFS.filter(column=>column.required).map(column=>column.key);
-const EMPTY_CASE_FILTERS = {category:'全部案件类型',status:'全部研判状态',caseStatus:'全部案件状态',owner:'全部立案单位',acceptedStart:'',acceptedEnd:'',filedStart:'',filedEnd:'',updatedStart:'',updatedEnd:''};
+const EMPTY_CASE_FILTERS = {caseType:'全部案件类型',clueCategory:'全部线索类别',analysisStatus:'全部研判状态',caseStatus:'全部案件状态',owner:'全部立案单位',acceptedStart:'',acceptedEnd:'',filedStart:'',filedEnd:'',updatedStart:'',updatedEnd:''};
+function normalizeCaseSemantics(c){
+  const known=c.id==='CASE-0817'?{caseStatus:'已立案',caseType:'投资平台诈骗',clueCategory:'涉网线索'}:c.id==='CASE-0802'?{caseStatus:'侦办中',caseType:'关联账户核查',clueCategory:'资金线索'}:{};
+  c.analysisStatus ||= c.status || '待研判';
+  c.caseStatus ||= known.caseStatus || '待确认';
+  c.caseType ||= known.caseType || (c.category&&!['涉网线索','资金线索','其他线索'].includes(c.category)?c.category:'其他类型');
+  c.clueCategory ||= known.clueCategory || (['涉网线索','资金线索','其他线索'].includes(c.category)?c.category:'其他线索');
+  c.status=c.analysisStatus;
+  c.category=c.clueCategory;
+  return c;
+}
+state.cases.forEach(normalizeCaseSemantics);
 const CASE_LIST_FIXTURES = {
   'CASE-0817':{acceptedAt:'2026-09-12 14:20',filedAt:'2026-09-12 16:05',caseStatus:'已立案',acceptingUnit:'演示分局 · 接警中心',victim:'张宝林',suspect:'孙帝、孟昭鑫',description:'受害人通过示例投资平台转款，关联收款账户、联络号码与网络账号待核验。',notes:2,forensic:2,noteParse:'解析完成',forensicParse:'解析完成'},
   'CASE-0802':{acceptedAt:'2026-08-02 10:18',filedAt:'2026-08-02 11:30',caseStatus:'侦办中',acceptingUnit:'演示分局 · 刑侦大队',victim:'陈晓禾',suspect:'林青、赵文',description:'围绕关联账户和交易记录开展本地合成核查，账户归属及资金性质待确认。',notes:2,forensic:2,noteParse:'解析完成',forensicParse:'解析完成'},
@@ -47,8 +61,12 @@ const CASE_LIST_FIXTURES = {
 function listConfig(){
   state.caseList ||= {};
   const config=state.caseList;
-  if(config.version!==2)Object.assign(config,{version:2,tab:config.tab||'all',sort:config.sort||'desc',columns:[...DEFAULT_CASE_COLUMNS],saved:config.saved||null,filters:{...EMPTY_CASE_FILTERS},filtersOpen:false,columnsOpen:false});
+  if(config.version!==4){
+    const previousFilters={...EMPTY_CASE_FILTERS,...(config.filters||{})};
+    Object.assign(config,{version:4,tab:config.tab||'all',sort:config.sort||'desc',columns:Array.isArray(config.columns)?config.columns:[...DEFAULT_CASE_COLUMNS],saved:config.saved||null,filters:previousFilters,filterDraft:{...previousFilters},filtersOpen:false,columnsOpen:false});
+  }
   config.filters={...EMPTY_CASE_FILTERS,...(config.filters||{})};
+  config.filterDraft={...EMPTY_CASE_FILTERS,...(config.filterDraft||config.filters)};
   const allowed=new Set(CASE_COLUMN_DEFS.map(column=>column.key));
   config.columns=[...new Set([...REQUIRED_CASE_COLUMNS,...(Array.isArray(config.columns)?config.columns:DEFAULT_CASE_COLUMNS)])].filter(key=>allowed.has(key));
   return config;
@@ -58,28 +76,36 @@ function caseListRecord(c){
   const flow=state.caseFlows?.[c.id];
   const acceptedAt=c.acceptedAt||fixture.acceptedAt||`${c.updated||''} 09:30`.trim();
   const filedAt=c.filedAt||fixture.filedAt||`${c.updated||''} 10:00`.trim();
-  return {...c,...fixture,acceptedAt,filedAt,caseStatus:c.caseStatus||fixture.caseStatus||'已立案',acceptingUnit:c.acceptingUnit||fixture.acceptingUnit||c.owner||'—',victim:c.victim||fixture.victim||'—',suspect:c.suspect||fixture.suspect||'—',description:c.description||fixture.description||'—',notes:c.notesCount??fixture.notes??(flow?.materials?.[2]?.status!=='待解析'&&flow?1:0),forensic:c.forensicCount??fixture.forensic??(flow?.materials?.[1]?.status!=='待解析'&&flow?1:0),noteParse:c.noteParseStatus||fixture.noteParse||flow?.materials?.[2]?.status||'待解析',forensicParse:c.forensicParseStatus||fixture.forensicParse||flow?.materials?.[1]?.status||'待解析'};
+  normalizeCaseSemantics(c);
+  return {...c,...fixture,acceptedAt,filedAt,caseStatus:c.caseStatus||fixture.caseStatus||'待确认',acceptingUnit:c.acceptingUnit||fixture.acceptingUnit||c.owner||'—',victim:c.victim||fixture.victim||'—',suspect:c.suspect||fixture.suspect||'—',description:c.description||fixture.description||'—',notes:c.notesCount??fixture.notes??(flow?.materials?.[2]?.status!=='待解析'&&flow?1:0),forensic:c.forensicCount??fixture.forensic??(flow?.materials?.[1]?.status!=='待解析'&&flow?1:0),noteParse:c.noteParseStatus||fixture.noteParse||flow?.materials?.[2]?.status||'待解析',forensicParse:c.forensicParseStatus||fixture.forensicParse||flow?.materials?.[1]?.status||'待解析'};
 }
 const dateOnly=value=>String(value||'').slice(0,10);
 const inDateRange=(value,start,end)=>{const date=dateOnly(value);return (!start||date>=start)&&(!end||date<=end);};
 const uniqueCaseValues=(records,key)=>[...new Set(records.map(record=>record[key]).filter(Boolean))];
 const selectedOption=(value,current)=>String(value)===String(current)?' selected':'';
 function filterSelect(label,name,allLabel,values,current){return `<label class="case-filter-item"><span>${label}</span><select name="${name}"><option${selectedOption(allLabel,current)}>${allLabel}</option>${values.filter(value=>value!==allLabel).map(value=>`<option${selectedOption(value,current)}>${esc(value)}</option>`).join('')}</select></label>`;}
-function dateRange(label,prefix,filters){return `<label class="case-filter-item case-filter-date"><span>${label}</span><span class="case-date-range"><input type="date" name="${prefix}Start" value="${esc(filters[`${prefix}Start`])}" aria-label="${label}开始日期"><i aria-hidden="true">→</i><input type="date" name="${prefix}End" value="${esc(filters[`${prefix}End`])}" aria-label="${label}结束日期"></span></label>`;}
-function activeFilterCount(filters){return ['category','status','caseStatus','owner'].filter(key=>filters[key]!==EMPTY_CASE_FILTERS[key]).length+[['acceptedStart','acceptedEnd'],['filedStart','filedEnd'],['updatedStart','updatedEnd']].filter(keys=>keys.some(key=>filters[key])).length;}
+function dateRange(label,prefix,filters){return `<label class="case-filter-item case-filter-date"><span>${label}</span><span class="case-date-range"><input type="date" lang="zh-CN" name="${prefix}Start" value="${esc(filters[`${prefix}Start`])}" aria-label="${label}开始日期"><i aria-hidden="true">→</i><input type="date" lang="zh-CN" name="${prefix}End" value="${esc(filters[`${prefix}End`])}" aria-label="${label}结束日期"></span></label>`;}
+function activeFilterCount(filters){return ['caseType','clueCategory','analysisStatus','caseStatus','owner'].filter(key=>filters[key]!==EMPTY_CASE_FILTERS[key]).length+[['acceptedStart','acceptedEnd'],['filedStart','filedEnd'],['updatedStart','updatedEnd']].filter(keys=>keys.some(key=>filters[key])).length;}
+function caseFilterSummary(filters){
+  const parts=[];
+  [['caseType','案件类型'],['clueCategory','线索类别'],['analysisStatus','研判状态'],['caseStatus','案件状态'],['owner','立案单位']].forEach(([key,label])=>{if(filters[key]!==EMPTY_CASE_FILTERS[key])parts.push(`${label}：${filters[key]}`);});
+  [['accepted','受理时间'],['filed','立案时间'],['updated','更新时间']].forEach(([key,label])=>{if(filters[`${key}Start`]||filters[`${key}End`])parts.push(`${label}：${filters[`${key}Start`]||'不限'} 至 ${filters[`${key}End`]||'不限'}`);});
+  return parts;
+}
 function resultsCell(flow){return `<div class="case-results">${[['person','人',flow?.run==='Success'?(flow.detail?.entities||caseEntities).filter(node=>(node.icon||node.category)==='person').length:0],['funds','卡',flow?.run==='Success'?(flow.detail?.entities||caseEntities).filter(node=>(node.icon||node.category)==='funds').length:0],['comm','话',flow?.run==='Success'?(flow.detail?.entities||caseEntities).filter(node=>(node.icon||node.category)==='comm').length:0],['net','网',flow?.run==='Success'?(flow.detail?.entities||caseEntities).filter(node=>(node.icon||node.category)==='net').length:0]].map(([color,label,count])=>`<span class="business-tag ${color}">${label} ${count}</span>`).join('')}</div>`;}
 function parseStatus(value){return tag(value,/完成|已解析/.test(value)?'success':/失败|异常/.test(value)?'danger':'warning');}
-function textCell(value,wide=false){const safe=esc(value||'—');return wide?`<span class="case-cell-wrap" title="${safe}">${safe}</span>`:safe;}
+function textCell(value,wide=false){const safe=esc(displayValue(value));return wide?`<span class="case-cell-wrap" title="${safe}">${safe}</span>`:safe;}
 export function caseListPage() {
-  const config=listConfig(),filters=config.filters,allRecords=state.cases.map(caseListRecord);
-  const rows=allRecords.filter(c=>(!state.caseFilter||`${c.name} ${c.number} ${c.description} ${c.victim} ${c.suspect}`.includes(state.caseFilter))&&(config.tab!=='favorite'||c.favorite)&&(config.tab!=='yesterday'||dateOnly(c.updated)===yesterday())&&(filters.category==='全部案件类型'||c.category===filters.category)&&(filters.status==='全部研判状态'||c.status===filters.status)&&(filters.caseStatus==='全部案件状态'||c.caseStatus===filters.caseStatus)&&(filters.owner==='全部立案单位'||c.owner===filters.owner)&&inDateRange(c.acceptedAt,filters.acceptedStart,filters.acceptedEnd)&&inDateRange(c.filedAt,filters.filedStart,filters.filedEnd)&&inDateRange(c.updated,filters.updatedStart,filters.updatedEnd)).sort((a,b)=>config.sort==='desc'?String(b.updated).localeCompare(String(a.updated)):String(a.updated).localeCompare(String(b.updated)));
+  const config=listConfig(),filters=config.filters,draft=config.filterDraft,allRecords=state.cases.map(caseListRecord);
+  const rows=allRecords.filter(c=>(!state.caseFilter||`${c.name} ${c.number} ${c.description} ${c.victim} ${c.suspect}`.includes(state.caseFilter))&&(config.tab!=='favorite'||c.favorite)&&(config.tab!=='yesterday'||dateOnly(c.updated)===yesterday())&&(filters.caseType==='全部案件类型'||c.caseType===filters.caseType)&&(filters.clueCategory==='全部线索类别'||c.clueCategory===filters.clueCategory)&&(filters.analysisStatus==='全部研判状态'||c.analysisStatus===filters.analysisStatus)&&(filters.caseStatus==='全部案件状态'||c.caseStatus===filters.caseStatus)&&(filters.owner==='全部立案单位'||c.owner===filters.owner)&&inDateRange(c.acceptedAt,filters.acceptedStart,filters.acceptedEnd)&&inDateRange(c.filedAt,filters.filedStart,filters.filedEnd)&&inDateRange(c.updated,filters.updatedStart,filters.updatedEnd)).sort((a,b)=>config.sort==='desc'?String(b.updated).localeCompare(String(a.updated)):String(a.updated).localeCompare(String(b.updated)));
   const columns=CASE_COLUMN_DEFS.filter(column=>column.key!=='name'&&config.columns.includes(column.key));
-  const filterCount=activeFilterCount(filters);
-  const advancedFilters=config.filtersOpen?`<form id="case-advanced-filter" class="case-filter-panel" aria-label="案件筛选条件">${filterSelect('案件类型','category','全部案件类型',uniqueCaseValues(allRecords,'category'),filters.category)}${filterSelect('研判状态','status','全部研判状态',uniqueCaseValues(allRecords,'status'),filters.status)}${filterSelect('案件状态','caseStatus','全部案件状态',uniqueCaseValues(allRecords,'caseStatus'),filters.caseStatus)}${filterSelect('立案单位','owner','全部立案单位',uniqueCaseValues(allRecords,'owner'),filters.owner)}${dateRange('受理时间','accepted',filters)}${dateRange('立案时间','filed',filters)}${dateRange('更新时间','updated',filters)}</form>`:'';
+  const filterCount=activeFilterCount(filters),filterParts=caseFilterSummary(filters);
+  const filterSummary=filterParts.length?`<div class="case-filter-summary" aria-live="polite">已应用 ${filterParts.length} 项条件：${esc(filterParts.join('；'))}</div>`:'';
+  const advancedFilters=config.filtersOpen?`<form id="case-advanced-filter" class="case-filter-panel" aria-label="案件筛选条件">${filterSelect('案件类型','caseType','全部案件类型',uniqueCaseValues(allRecords,'caseType'),draft.caseType)}${filterSelect('线索类别','clueCategory','全部线索类别',uniqueCaseValues(allRecords,'clueCategory'),draft.clueCategory)}${filterSelect('研判状态','analysisStatus','全部研判状态',uniqueCaseValues(allRecords,'analysisStatus'),draft.analysisStatus)}${filterSelect('案件状态','caseStatus','全部案件状态',uniqueCaseValues(allRecords,'caseStatus'),draft.caseStatus)}${filterSelect('立案单位','owner','全部立案单位',uniqueCaseValues(allRecords,'owner'),draft.owner)}${dateRange('受理时间','accepted',draft)}${dateRange('立案时间','filed',draft)}${dateRange('更新时间','updated',draft)}<div class="case-filter-actions"><span>编辑筛选草稿后，选择“应用筛选”才会更新列表。</span><div>${btn('清除筛选','case-clear-filters')}${btn('取消','case-cancel-filters')}${btn('应用筛选','case-apply-filters','','primary')}</div></div></form>`:'';
   const columnMenu=`<div class="case-column-picker"> <button type="button" class="btn case-icon-button ${config.columnsOpen?'active':''}" data-action="case-columns" aria-label="显示列设置" aria-expanded="${config.columnsOpen}" title="显示列设置">${icon('gear')}</button>${config.columnsOpen?`<div class="case-column-menu" role="group" aria-label="配置案件列表显示字段"><strong>显示列</strong>${CASE_COLUMN_DEFS.map(column=>`<label class="case-column-option ${column.required?'required':''}"><input type="checkbox" data-case-column="${column.key}" ${config.columns.includes(column.key)?'checked':''} ${column.required?'disabled':''}><span>${column.label}</span></label>`).join('')}</div>`:''}</div>`;
-  return `${caseWorkbenchHeading('case',btn('流程说明','case-help','','ghost'))}<section class="case-list-panel"><nav class="case-list-tabs" aria-label="案件视图">${[['yesterday','昨日案件'],['all','全部案件'],['favorite','重点关注']].map(([id,label])=>`<button data-action="case-tab" data-tab="${id}" class="${config.tab===id?'active':''}" aria-pressed="${config.tab===id}">${label}</button>`).join('')}</nav><div class="case-list-controls"><div class="actions">${btn('新增案件','case-create','','primary','plus')}${btn('批量导入','case-import')}</div><form id="case-filter" class="case-search-form"><label class="case-input-search">${icon('search')}<input type="search" name="query" value="${esc(state.caseFilter||'')}" aria-label="搜索案件名称、编号、简要案情" placeholder="搜索案件名称、编号、简要案情"></label>${btn(`筛选${filterCount?` (${filterCount})`:''}`,'case-filters',`aria-expanded="${config.filtersOpen}"`,'secondary','down')}${btn('重置','clear-case-filter')}${btn('保存','case-save-view')}<button type="button" class="btn case-icon-button" data-action="case-sort" aria-label="按更新时间${config.sort==='desc'?'升序':'降序'}排列" title="当前${config.sort==='desc'?'降序':'升序'}，点击切换">${icon('sort-desc',config.sort==='asc'?'ascending':'')}</button>${columnMenu}</form></div>${advancedFilters}<div class="case-table-scroll"><table class="case-table"><thead><tr><th class="case-favorite-cell" aria-label="重点关注"></th><th class="case-index-cell">序号</th><th class="case-name-cell">案件名称/编号</th>${columns.map(column=>`<th class="case-column-${column.key}">${column.label}</th>`).join('')}<th class="case-operations">操作</th></tr></thead><tbody>${rows.map((c,index)=>{
+  return `${caseWorkbenchHeading('case',btn('流程说明','case-help','','ghost'))}<section class="case-list-panel"><nav class="case-list-tabs" aria-label="案件视图">${[['yesterday','昨日案件'],['all','全部案件'],['favorite','重点关注']].map(([id,label])=>`<button data-action="case-tab" data-tab="${id}" class="${config.tab===id?'active':''}" aria-pressed="${config.tab===id}">${label}</button>`).join('')}</nav><div class="case-list-controls"><div class="actions">${btn('新增案件','case-create','','primary','plus')}${btn('批量导入','case-import')}</div><form id="case-filter" class="case-search-form"><label class="case-input-search">${icon('search')}<input type="search" name="query" value="${esc(state.caseFilter||'')}" aria-label="搜索案件名称、编号、简要案情" placeholder="搜索案件名称、编号、简要案情"></label>${btn(`筛选${filterCount?` (${filterCount})`:''}`,'case-filters',`aria-expanded="${config.filtersOpen}"`,'secondary','down')}${btn('重置视图','clear-case-filter')}${btn('保存当前视图','case-save-view')}<button type="button" class="btn case-icon-button" data-action="case-sort" aria-label="按更新时间${config.sort==='desc'?'升序':'降序'}排列" title="当前${config.sort==='desc'?'降序':'升序'}，点击切换">${icon('sort-desc',config.sort==='asc'?'ascending':'')}</button>${columnMenu}</form></div>${filterSummary}${advancedFilters}<div class="case-table-scroll"><table class="case-table"><thead><tr><th class="case-favorite-cell" aria-label="重点关注"></th><th class="case-index-cell">序号</th><th class="case-name-cell">案件名称/编号</th>${columns.map(column=>`<th class="case-column-${column.key}">${column.label}</th>`).join('')}<th class="case-operations">操作</th></tr></thead><tbody>${rows.map((c,index)=>{
     const flow=state.caseFlows?.[c.id];
-    const values={status:tag(c.status,c.status==='已完成'?'success':c.status==='待核验'?'warning':''),notes:c.notes,forensic:c.forensic,results:resultsCell(flow),owner:textCell(c.owner),acceptedAt:textCell(c.acceptedAt),filedAt:textCell(c.filedAt),amount:c.amount!=null?`¥${Number(c.amount).toLocaleString('zh-CN')}`:'—',noteParse:parseStatus(c.noteParse),forensicParse:parseStatus(c.forensicParse),victim:textCell(c.victim,true),suspect:textCell(c.suspect,true),description:textCell(c.description,true),category:textCell(c.category),caseStatus:tag(c.caseStatus,/结案|完成/.test(c.caseStatus)?'success':/侦办|立案/.test(c.caseStatus)?'blue':'neutral'),updated:textCell(c.updated),acceptingUnit:textCell(c.acceptingUnit,true)};
+    const values={analysisStatus:tag(c.analysisStatus,c.analysisStatus==='已完成'?'success':c.analysisStatus==='待核验'?'warning':''),notes:c.notes,forensic:c.forensic,results:resultsCell(flow),owner:textCell(c.owner),acceptedAt:textCell(formatDateTime(c.acceptedAt)),filedAt:textCell(formatDateTime(c.filedAt)),amount:formatMoney(c.amount),noteParse:parseStatus(c.noteParse),forensicParse:parseStatus(c.forensicParse),victim:textCell(c.victim,true),suspect:textCell(c.suspect,true),description:textCell(c.description,true),caseType:textCell(c.caseType),clueCategory:textCell(c.clueCategory),caseStatus:tag(c.caseStatus,/结案|完成/.test(c.caseStatus)?'success':/侦办|立案/.test(c.caseStatus)?'blue':'neutral'),updated:textCell(formatDateTime(c.updated)),acceptingUnit:textCell(c.acceptingUnit,true)};
     return `<tr><td class="case-favorite-cell"><button class="case-favorite" data-action="case-favorite" data-id="${esc(c.id)}" aria-pressed="${!!c.favorite}" aria-label="${c.favorite?'取消关注':'关注'} ${esc(c.name)}">${c.favorite?'★':'☆'}</button></td><td class="case-index-cell">${index+1}</td><td class="case-name-cell"><button class="case-title-link" data-action="open-case" data-id="${esc(c.id)}">${esc(c.name)}</button><small>${esc(c.number)}</small></td>${columns.map(column=>`<td class="case-column-${column.key}">${values[column.key]}</td>`).join('')}<td class="case-operations"><div class="actions">${btn('编辑','case-edit',`data-id="${esc(c.id)}"`,'text')}${btn('删除','case-delete',`data-id="${esc(c.id)}"`,'text')}</div><div class="actions">${btn('导入报告','case-upload-report',`data-id="${esc(c.id)}"`,'text')}${btn('查看报告','case-view-report',`data-id="${esc(c.id)}"`,'text')}</div></td></tr>`;
   }).join('')}</tbody></table></div>${!rows.length?empty('没有符合条件的案件','尝试清除搜索条件，或切换到全部案件。',btn('清空筛选','clear-case-filter')):''}<footer class="case-list-caption case-list-footer"><span>共 ${rows.length} 条</span></footer></section>`;
 }
@@ -134,27 +160,61 @@ function caseReportPage(c,flow) {
 }
 
 export function installCaseWorkflow({actions,forms,go,commit,toast,modal,formModal,confirm,ensureBusiness,download}) {
+  const caseImportDrafts=new Map();
+  const importFieldGuide=()=>`<section class="case-import-intro"><div><strong>导入对象</strong><p>仅创建本地案件引用，不创建或修改正式案件，也不会自动提取实体。</p></div><button type="button" class="btn secondary" data-action="case-import-template">下载 JSON 模板</button></section><dl class="case-import-fields">${CASE_IMPORT_FIELDS.map(spec=>`<div><dt><code>${esc(spec.key)}</code> · ${esc(spec.label)}${spec.required?'<span>必填</span>':'<em>可选</em>'}</dt><dd>${esc(spec.description)}${spec.options?`；可选值：${spec.options.map(esc).join('、')}`:''}</dd></div>`).join('')}</dl>`;
+  const importPreview=(token,rows)=>{
+    const headers=['序号','案件名称','案件编号','立案单位','案件类型','线索类别','受理时间'];
+    const body=rows.map((row,index)=>[index+1,esc(row.name),`<code>${esc(row.number)}</code>`,esc(row.owner||'示例一组'),esc(row.caseType||'其他类型'),esc(row.clueCategory||'其他线索'),esc(row.acceptedAt||'导入时补当前本地日期')]);
+    modal('确认批量导入',note(`已通过字段校验，共 ${rows.length} 条。确认前不会写入案件列表；本批次采用整批导入策略。`)+`<div class="case-import-preview">${table(headers,body,'待导入的本地案件引用')}</div><div class="form-actions">${btn('返回编辑','case-import-edit',`data-token="${esc(token)}"`)}${btn(`确认导入 ${rows.length} 条`,'case-import-confirm',`data-token="${esc(token)}"`,'primary')}</div>`,{wide:true,className:'case-import-preview-modal'});
+  };
+  const openImportEditor=(value=caseImportTemplateText())=>formModal('批量导入合成案件',note('高级 JSON 模式：模板必须是数组。案件编号等标识必须使用字符串；任一错误、重复或超限都会整批阻断。','warning')+importFieldGuide()+`<details class="case-import-advanced" open><summary>JSON 高级模式</summary>${area('JSON 数据','rows',value,'required rows="14" spellcheck="false"')}</details>`,f=>{
+    ensureBusiness();
+    const prepared=prepareCaseImport(f.get('rows'),state.cases.map(c=>c.number));
+    if(!prepared.ok)throw Error(prepared.errors.map(error=>error.message).join('\n'));
+    const token=uid('IMPORT');
+    caseImportDrafts.set(token,{raw:f.get('rows'),rows:structuredClone(prepared.rows)});
+    setTimeout(()=>importPreview(token,prepared.rows),0);
+    return true;
+  },'校验并预览',{size:'wide'});
   const guard=()=>{ensureBusiness();if(!selectedCase())throw Error('案件不存在，请返回案件列表。');};
   const changeStep=step=>{guard();const flow=caseFlow();if(step<0||step>4)return;go('PG13',()=>{flow.step=step;});};
-  const editCase=(c=null)=>formModal(c?'编辑本地案件':'新增合成案件',note('只创建本地研判引用，不创建或修改正式案件。')+field('案件名称','name',c?.name||'','text','required maxlength="100"')+field('案件编号','number',c?.number||'','text','required maxlength="60"')+field('立案单位','owner',c?.owner||'示例分局 · 刑侦大队','text','required maxlength="80"')+select('案件类型','category',['涉网线索','资金线索','其他线索'],c?.category||'涉网线索'),f=>{ensureBusiness();const fields=Object.fromEntries([...f].map(([key,value])=>[key,value.trim()]));for(const key of ['name','number','owner'])if(!fields[key].trim())throw Error('必填字段不能仅为空格。');if(state.cases.some(item=>item.id!==c?.id&&item.number===fields.number.trim()))throw Error('案件编号已存在，请检查重复记录。');if(c)Object.assign(c,fields,{updated:new Date().toLocaleDateString('sv-SE')});else{const date=new Date().toLocaleDateString('sv-SE');state.cases.unshift({...fields,id:uid('CASE'),status:'待研判',caseStatus:'已立案',acceptedAt:`${date} 09:30`,filedAt:`${date} 10:00`,acceptingUnit:fields.owner,description:'—',victim:'—',suspect:'—',updated:date,members:[state.user],reports:[]});}commit('本地案件已保存。');return true;});
+  const editCase=(c=null)=>formModal(c?'编辑本地案件':'新增合成案件',note('只创建本地研判引用，不创建或修改正式案件。')+field('案件名称','name',c?.name||'','text','required maxlength="100"')+field('案件编号','number',c?.number||'','text','required maxlength="60"')+field('立案单位','owner',c?.owner||'示例分局 · 刑侦大队','text','required maxlength="80"')+select('案件类型','caseType',['投资平台诈骗','关联账户核查','其他类型'],c?.caseType||'其他类型')+select('线索类别','clueCategory',['涉网线索','资金线索','其他线索'],c?.clueCategory||'其他线索')+select('案件状态','caseStatus',['待确认','已立案','侦办中','已结案'],c?.caseStatus||'待确认')+select('研判状态','analysisStatus',['待研判','研判中','待核验','待补充','已完成'],c?.analysisStatus||'待研判'),f=>{ensureBusiness();const fields=Object.fromEntries([...f].map(([key,value])=>[key,value.trim()]));for(const key of ['name','number','owner'])if(!fields[key].trim())throw Error('必填字段不能仅为空格。');if(state.cases.some(item=>item.id!==c?.id&&item.number===fields.number.trim()))throw Error('案件编号已存在，请检查重复记录。');fields.status=fields.analysisStatus;fields.category=fields.clueCategory;if(c)Object.assign(c,fields,{updated:new Date().toLocaleDateString('sv-SE')});else{const date=new Date().toLocaleDateString('sv-SE');state.cases.unshift({...fields,id:uid('CASE'),acceptedAt:`${date} 09:30`,filedAt:'',acceptingUnit:fields.owner,description:'—',victim:'—',suspect:'—',updated:date,members:[state.user],reports:[]});}commit('本地案件已保存。');return true;});
   const findCase=el=>{const c=state.cases.find(c=>c.id===el.dataset.id);if(!c)throw Error('案件不存在');return c;};
   Object.assign(actions,{
     'case-help':()=>modal('五步研判流程',note('案情解析 → 现勘解析 → 笔录解析 → 侦查导图 → AI报告。材料与结果保留在各自案件中，切换页面不会重复执行。')+note('所有分析是本地合成示例。TXT原文可以保存，PDF/OCR、真实解析、位置查询、生产授权均未接入。','warning')),
     'case-tab':el=>{listConfig().tab=el.dataset.tab;commit();},
-    'clear-case-filter':()=>{const config=listConfig();state.caseFilter='';config.filters={...EMPTY_CASE_FILTERS};config.tab='all';commit();},
+    'clear-case-filter':()=>{const config=listConfig();state.caseFilter='';config.filters={...EMPTY_CASE_FILTERS};config.filterDraft={...EMPTY_CASE_FILTERS};config.tab='all';config.filtersOpen=false;commit('案件列表视图已重置。');},
     'case-sort':()=>{const c=listConfig();c.sort=c.sort==='desc'?'asc':'desc';commit();},
     'case-favorite':el=>{ensureBusiness();const c=findCase(el);c.favorite=!c.favorite;commit();},
-    'case-filters':()=>{const config=listConfig();config.filtersOpen=!config.filtersOpen;if(config.filtersOpen)config.columnsOpen=false;commit();},
+    'case-filters':()=>{const config=listConfig();const opening=!config.filtersOpen;config.filtersOpen=opening;if(opening){config.filterDraft={...config.filters};config.columnsOpen=false;}commit();},
+    'case-apply-filters':()=>{const config=listConfig();for(const prefix of ['accepted','filed','updated'])if(config.filterDraft[`${prefix}Start`]&&config.filterDraft[`${prefix}End`]&&config.filterDraft[`${prefix}Start`]>config.filterDraft[`${prefix}End`])throw Error('开始日期不能晚于结束日期。');config.filters={...config.filterDraft};config.filtersOpen=false;commit('筛选条件已应用。');},
+    'case-cancel-filters':()=>{const config=listConfig();config.filterDraft={...config.filters};config.filtersOpen=false;commit();},
+    'case-clear-filters':()=>{const config=listConfig();config.filters={...EMPTY_CASE_FILTERS};config.filterDraft={...EMPTY_CASE_FILTERS};config.filtersOpen=false;commit('已清除已应用筛选。');},
     'case-columns':()=>{const config=listConfig();config.columnsOpen=!config.columnsOpen;commit();},
-    'case-save-view':()=>{const c=listConfig();c.saved={tab:c.tab,filters:{...c.filters},sort:c.sort,columns:[...c.columns],query:state.caseFilter||''};c.columnsOpen=false;commit('当前视图已保存到本机，刷新后保留。');},
+    'case-save-view':()=>{const c=listConfig();c.saved={tab:c.tab,filters:{...c.filters},sort:c.sort,columns:[...c.columns],query:state.caseFilter||''};c.columnsOpen=false;commit('当前视图已保存到本机，包含搜索、筛选、排序和显示列。');},
     'case-create':()=>{ensureBusiness();editCase();},'case-edit':el=>{ensureBusiness();editCase(findCase(el));},
     'case-delete':el=>{ensureBusiness();const c=findCase(el);confirm('删除本地案件引用？',`将移除“${c.name}”的本地引用与本地研判流程，独立报告和历史搜索不删除，不影响任何正式案件。`,()=>{ensureBusiness();state.cases=state.cases.filter(x=>x.id!==c.id);if(state.caseFlows)delete state.caseFlows[c.id];if(state.selectedCase===c.id)state.selectedCase=state.cases[0]?.id;if(state.caseId===c.id)state.caseId=null;commit('本地引用已删除，历史独立产物保留。');},'删除本地引用');},
-    'case-import':()=>{ensureBusiness();formModal('批量导入合成案件',note('粘贴 JSON 数组，每条包含 name、number，可选 owner。仅导入本地引用，最多50条；重复编号整批拒绝。')+area('JSON数据','rows','[{"name":"合成示例案件","number":"DEMO-2026-01","owner":"示例一组"}]','required rows="8"'),f=>{ensureBusiness();let rows;try{rows=JSON.parse(f.get('rows'));}catch{throw Error('JSON格式不正确');}if(!Array.isArray(rows)||!rows.length||rows.length>50)throw Error('请提供1–50条案件');const seen=new Set(state.cases.map(c=>c.number));for(const r of rows){if(!r||typeof r.name!=='string'||!r.name.trim()||r.name.length>100||typeof r.number!=='string'||!r.number.trim()||r.number.length>60||(r.owner!==undefined&&(typeof r.owner!=='string'||r.owner.length>80)))throw Error('案件名称、编号或单位格式不正确');if(seen.has(r.number.trim()))throw Error('存在重复编号：'+r.number);seen.add(r.number.trim());}state.cases.push(...rows.map(r=>({id:uid('CASE'),name:r.name.trim(),number:r.number.trim(),owner:r.owner||'示例一组',category:'其他线索',status:'待研判',updated:new Date().toLocaleDateString('sv-SE'),members:[state.user],reports:[]})));commit('已导入'+rows.length+'条本地引用。');return true;},'导入');},
+    'case-import':()=>{ensureBusiness();openImportEditor();},
+    'case-import-template':()=>{ensureBusiness();download('案件批量导入模板.json',caseImportTemplateText(),'application/json;charset=utf-8');},
+    'case-import-edit':el=>{ensureBusiness();const draft=caseImportDrafts.get(el.dataset.token);if(!draft)throw Error('导入预览已失效，请重新校验。');openImportEditor(draft.raw);},
+    'case-import-confirm':el=>{
+      ensureBusiness();
+      const token=el.dataset.token,draft=caseImportDrafts.get(token);
+      if(!draft)throw Error('导入预览已失效，请重新校验。');
+      const prepared=prepareCaseImport(JSON.stringify(draft.rows),state.cases.map(c=>c.number));
+      if(!prepared.ok)throw Error('确认前校验失败：'+prepared.errors.map(error=>error.message).join('；'));
+      const date=new Date().toLocaleDateString('sv-SE');
+      const records=prepared.rows.map(row=>caseRecordFromImport(row,{id:uid('CASE'),user:state.user,date}));
+      state.cases.push(...records);
+      caseImportDrafts.delete(token);
+      actions.close();
+      commit(`已导入 ${records.length} 条本地案件引用。`);
+    },
     'case-stage':el=>changeStep(Number(el.dataset.step)),
     'case-material-demo':el=>{guard();confirm('替换为合成示例？','将替换当前材料并清除本轮执行状态；已生成报告的冻结快照保留。',()=>{guard();const i=Number(el.dataset.step);const m=caseFlow().materials[i];m.text=demoTexts[i];m.name=['案情摘录_示例.txt','现勘记录_示例.txt','询问笔录_示例.txt'][i];m.demo=true;m.status='待解析';invalidateCaseRun(caseFlow());commit('已填入合成示例，请保存并模拟解析。');},'替换材料');},
     'case-dedup':()=>modal('跨来源合并与冲突保留',table(['稳定标识','来源','处理'],[['账户尾号6071','案情 / 现勘 / 笔录','同一合成标识，仅示例合并；尾号不构成真实唯一身份'],['号码0712','案情 / 现勘','来源并列保留，身份待核验'],['账号 invest_demo','案情 / 笔录','保留大小写，不与同名账号自动合并']])+note('此处为合并规则示例，不对自定义上传材料进行真实身份消歧。','warning')),
     'case-graph-view':el=>{guard();caseFlow().view=el.dataset.view;state.graphUI ||= {};state.graphUI.case={zoom:'fit'};commit();},
-    'case-run':()=>{guard();const f=caseFlow();if(!f.materials.every(m=>m.status==='已解析'&&m.demo))throw Error('请先完成三类合成示例材料解析。');if(f.run!=='Idle')throw Error('本轮任务已开始，不重复执行。');if(!state.network)throw Error('当前模拟断线，请恢复连接后重试。');f.run='Running';f.tick=0;f.events.push({title:'启动本轮模拟研判',time:now(),status:'运行中'});selectedCase().status='研判中';commit('已启动本地模拟；可手动推进，或开启演示自动推进。');},
+    'case-run':()=>{guard();const f=caseFlow();if(!f.materials.every(m=>m.status==='已解析'&&m.demo))throw Error('请先完成三类合成示例材料解析。');if(f.run!=='Idle')throw Error('本轮任务已开始，不重复执行。');if(!state.network)throw Error('当前模拟断线，请恢复连接后重试。');f.run='Running';f.tick=0;f.events.push({title:'启动本轮模拟研判',time:now(),status:'运行中'});selectedCase().analysisStatus='研判中';selectedCase().status=selectedCase().analysisStatus;commit('已启动本地模拟；可手动推进，或开启演示自动推进。');},
     'case-advance':()=>{guard();advanceCaseFlow(caseFlow());commit();},
     'case-pause':()=>{guard();const f=caseFlow();if(f.run!=='Running')throw Error('当前任务未运行');f.run='Paused';f.events.push({title:'用户暂停，已完成结果保留',time:now(),status:'已暂停'});commit('已暂停，不重放已完成动作。');},
     'case-resume':()=>{guard();const f=caseFlow();if(!['Paused','Error','Waiting','Exception'].includes(f.run))throw Error('当前状态不能恢复');if(!state.network)throw Error('当前模拟断线，不能恢复');f.retried=true;f.authorized=true;f.run='Running';f.events.push({title:'检查条件后显式恢复',time:now(),status:'运行中'});commit('从保留的步骤继续。');},
@@ -172,10 +232,10 @@ export function installCaseWorkflow({actions,forms,go,commit,toast,modal,formMod
   document.addEventListener('change',async e=>{
     const target=e.target;
     if(target.matches('[data-case-column]')){const config=listConfig(),key=target.dataset.caseColumn;if(target.checked)config.columns=[...new Set([...config.columns,key])];else config.columns=config.columns.filter(column=>column!==key);commit();return;}
-    if(target.closest('#case-advanced-filter')){const config=listConfig(),filters=config.filters;filters[target.name]=target.value;for(const prefix of ['accepted','filed','updated'])if(filters[`${prefix}Start`]&&filters[`${prefix}End`]&&filters[`${prefix}Start`]>filters[`${prefix}End`]){filters[target.name]='';toast('开始日期不能晚于结束日期。');break;}commit();return;}
+    if(target.closest('#case-advanced-filter')){const config=listConfig(),draft=config.filterDraft,previous=draft[target.name];draft[target.name]=target.value;for(const prefix of ['accepted','filed','updated'])if(draft[`${prefix}Start`]&&draft[`${prefix}End`]&&draft[`${prefix}Start`]>draft[`${prefix}End`]){draft[target.name]=previous;target.value=previous;toast('开始日期不能晚于结束日期。');break;}return;}
     if(target.id!=='case-material-file')return;try{guard();const file=e.target.files[0];if(!file)return;if(!/\.txt$/i.test(file.name)||file.size>2*1024*1024)throw Error('仅支持≤2MB的TXT文件');const form=document.querySelector('#case-material-form');form.elements.text.value=await file.text();form.elements.name.value=file.name;form.elements.text.dispatchEvent(new Event('input',{bubbles:true}));toast('原文已填入，请保存；自定义文本不会伪造解析结果。');}catch(error){toast(error.message);}});
 }
-function invalidateCaseRun(flow){const c=state.cases.find(c=>state.caseFlows?.[c.id]===flow);if(c)c.status='待研判';flow.run='Idle';flow.tick=0;flow.reportId=null;flow.retried=false;flow.authorized=false;flow.events=[];}
+function invalidateCaseRun(flow){const c=state.cases.find(c=>state.caseFlows?.[c.id]===flow);if(c){c.analysisStatus='待研判';c.status=c.analysisStatus;}flow.run='Idle';flow.tick=0;flow.reportId=null;flow.retried=false;flow.authorized=false;flow.events=[];}
 export function advanceCaseFlow(flow) {
   if(!flow||flow.run!=='Running'||!state.network)return;
   if(flow.tick===1&&state.scenario==='failure'&&!flow.retried){flow.run='Error';flow.events.push({title:'模拟来源超时，保留已完成节点',time:now(),status:'失败'});return;}
@@ -183,5 +243,5 @@ export function advanceCaseFlow(flow) {
   if(flow.tick===1&&state.scenario==='partial'&&!flow.retried){flow.run='Exception';flow.events.push({title:'部分来源未完成，请核对缺口',time:now(),status:'异常'});return;}
   if(state.scenario==='empty'){flow.run='Exception';flow.events.push({title:flow.detail?'模拟未检出关联结果，请切换场景后重试':'模拟未检出记录，不能生成位置候选；请切换场景后重试',time:now(),status:'空结果'});return;}
   flow.tick++;flow.events.push({title:(flow.detail?['检查本案材料来源','整理本案实体与待核验关系','完成本地合成研判演示']:['关联资金、通讯与网络线索','形成待核验人员主体','形成历史位置候选'])[flow.tick-1],time:now(),status:'完成'});
-  if(flow.tick>=3){flow.run='Success';const c=state.cases.find(c=>state.caseFlows?.[c.id]===flow);if(c)c.status='待核验';}
+  if(flow.tick>=3){flow.run='Success';const c=state.cases.find(c=>state.caseFlows?.[c.id]===flow);if(c){c.analysisStatus='待核验';c.status=c.analysisStatus;}}
 }

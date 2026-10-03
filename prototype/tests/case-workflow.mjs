@@ -25,18 +25,37 @@ await test('CASE01','案件列表搜索、筛选、冻结列、显示列与刷�
  assert.equal(await page.locator('.case-list-caption').count(),1);
  assert.equal((await page.locator('.case-list-footer').innerText()).trim(),'共 2 条');
  assert(!/合成记录|当前全部展示|中间字段可横向滚动/.test(await page.locator('.case-list-panel').innerText()));
- assert.deepEqual((await page.locator('.case-table thead th').allTextContents()).map(x=>x.trim()),['','序号','案件名称/编号','研判状态','笔录数','现勘数','研判结果','立案单位','受理时间','立案时间','简要案情','案件类型','案件状态','更新时间','受理单位','操作']);
+ assert.deepEqual((await page.locator('.case-table thead th').allTextContents()).map(x=>x.trim()),['','序号','案件名称/编号','研判状态','案件状态','案件类型','线索类别','笔录数','现勘数','研判结果','立案单位','受理时间','立案时间','简要案情','更新时间','受理单位','操作']);
+ const firstRow=page.locator('.case-table tbody tr').filter({hasText:'A2026-0912'});const firstText=await firstRow.innerText();
+ assert.match(firstText,/待研判/);assert.match(firstText,/已立案/);assert.match(firstText,/投资平台诈骗/);assert.match(firstText,/涉网线索/);
  await shot('list');
  await click('case-tab','[data-tab="favorite"]');assert.equal(await page.locator('.case-table tbody tr').count(),1);await click('clear-case-filter');
- await click('case-filters');assert.equal(await page.locator('#case-advanced-filter').count(),1);assert.deepEqual(await page.locator('#case-advanced-filter .case-filter-item>span:first-child').allTextContents(),['案件类型','研判状态','案件状态','立案单位','受理时间','立案时间','更新时间']);
- await page.locator('[name=category]').selectOption('资金线索');assert.equal(await page.locator('.case-table tbody tr').count(),1);await click('case-filters');assert.equal(await page.locator('#case-advanced-filter').count(),0);
- await click('case-columns');assert.equal(await page.locator('.case-column-option').count(),18);for(const key of ['name','acceptedAt','filedAt']){const input=page.locator(`[data-case-column="${key}"]`);assert(await input.isChecked());assert(await input.isDisabled());}
- await page.locator('[data-case-column=amount]').check();await click('case-save-view');await page.reload();assert(await page.getByRole('columnheader',{name:'涉案金额'}).isVisible());
+ await click('case-filters');assert.equal(await page.locator('#case-advanced-filter').count(),1);assert.deepEqual(await page.locator('#case-advanced-filter .case-filter-item>span:first-child').allTextContents(),['案件类型','线索类别','研判状态','案件状态','立案单位','受理时间','立案时间','更新时间']);
+ await page.locator('[name=clueCategory]').selectOption('资金线索');assert.equal(await page.locator('.case-table tbody tr').count(),2,'编辑筛选草稿不应立即改变列表');
+ await click('case-cancel-filters');assert.equal(await page.locator('#case-advanced-filter').count(),0);assert.equal(await page.locator('.case-table tbody tr').count(),2,'取消不应应用草稿');
+ await click('case-filters');assert.equal(await page.locator('[name=clueCategory]').inputValue(),'全部线索类别','再次打开时草稿应从已应用条件初始化');
+ await page.locator('[name=clueCategory]').selectOption('资金线索');await click('case-apply-filters');assert.equal(await page.locator('.case-table tbody tr').count(),1);assert.match(await page.locator('.case-filter-summary').innerText(),/线索类别：资金线索/);
+ await click('case-filters');await click('case-clear-filters');assert.equal(await page.locator('.case-table tbody tr').count(),2);assert.equal(await page.locator('.case-filter-summary').count(),0);
+ await click('case-filters');await page.locator('[name=clueCategory]').selectOption('资金线索');await click('case-apply-filters');
+ await click('case-columns');assert.equal(await page.locator('.case-column-option').count(),19);for(const key of ['name','acceptedAt','filedAt']){const input=page.locator(`[data-case-column="${key}"]`);assert(await input.isChecked());assert(await input.isDisabled());}
+ await page.locator('[data-case-column=amount]').check();assert.equal((await page.locator('[data-action=case-save-view]').innerText()).trim(),'保存当前视图');await click('case-save-view');await page.reload();assert(await page.getByRole('columnheader',{name:'涉案金额'}).isVisible());assert.equal(await page.locator('.case-table tbody tr').count(),1);assert.match(await page.locator('.case-filter-summary').innerText(),/线索类别：资金线索/);
  await click('clear-case-filter');await page.locator('[name=query]').fill('不存在的合成案件');await page.locator('[name=query]').press('Enter');await page.waitForTimeout(30);assert.equal(await page.locator('.case-table tbody tr').count(),0);await click('clear-case-filter');assert.equal(await page.locator('.case-table tbody tr').count(),2);
+});
+await test('CASE-R05','旧字段迁移保留原值且不推断未知案件为已立案',async()=>{
+ await page.evaluate(async()=>{
+  const {state,KEY}=await import('/src/state.js');
+  state.cases.unshift({id:'CASE-LEGACY',name:'旧字段合成验收案',number:'LEGACY-R05',status:'历史原值',category:'涉网线索',owner:'演示单位',updated:'2026-09-01',members:[],reports:[]});
+  localStorage.setItem(KEY,JSON.stringify({...state,preferences:{save:true,compact:false}}));
+ });
+ await page.reload();
+ const legacy=(await snap()).cases.find(item=>item.id==='CASE-LEGACY');
+ assert.deepEqual({analysisStatus:legacy.analysisStatus,caseStatus:legacy.caseStatus,caseType:legacy.caseType,clueCategory:legacy.clueCategory,status:legacy.status,category:legacy.category},{analysisStatus:'历史原值',caseStatus:'待确认',caseType:'其他类型',clueCategory:'涉网线索',status:'历史原值',category:'涉网线索'});
+ const row=page.locator('.case-table tbody tr').filter({hasText:'LEGACY-R05'});const text=await row.innerText();
+ for(const expected of ['历史原值','待确认','其他类型','涉网线索'])assert.match(text,new RegExp(expected));
 });
 await test('CASE02','新增/批量导入校验、转义和清空案件深链',async()=>{
  await click('case-import');await page.locator('[name=rows]').fill('[{"name":"重复","number":"A2026-0912"}]');await submit();assert.match(await page.locator('.form-error').innerText(),/重复/);assert.equal((await snap()).cases.length,2);
- await page.locator('[name=rows]').fill(JSON.stringify([{name:'<img src=x onerror=alert(1)>',number:'DEMO-XSS'}]));await submit();assert.equal((await snap()).cases.length,3);assert.equal(await page.locator('.case-table img').count(),0);
+ await page.locator('[name=rows]').fill(JSON.stringify([{name:'<img src=x onerror=alert(1)>',number:'DEMO-XSS'}]));await submit();assert.equal((await snap()).cases.length,2);await click('case-import-confirm');assert.equal((await snap()).cases.length,3);assert.equal(await page.locator('.case-table img').count(),0);
  await page.evaluate(async()=>{const {state,save}=await import('/src/state.js');state.cases=[];save()});await route('PG13');assert.match(await page.locator('#main').innerText(),/案件/);assert.equal(await page.locator('.case-stepper').count(),0);
 });
 await browser.close();assert.deepEqual(errors,[]);assert(results.every(r=>r.status==='PASS'));
